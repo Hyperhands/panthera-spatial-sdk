@@ -183,7 +183,7 @@ def run():
         minimum=min(effective.values())
         if minimum<=0:raise ValueError((i,j,effective))
         hard=.005 if inter else min(.005,minimum*.4)
-        thresholds.append(dict(hard=hard,safe=.02 if inter else min(.02,minimum+.002),
+        thresholds.append(dict(hard=hard,safe=.02 if inter else min(.02, max(.001,minimum*.8)),
                                capsule_hard=.005 if inter else min(hard,baseline-.001),
                                certified=effective, proofs=proofs))
     for c in caps: del c["points"],c["triangles"]

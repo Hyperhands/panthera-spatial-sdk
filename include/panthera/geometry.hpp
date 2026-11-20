@@ -16,6 +16,7 @@ ArmGeometry arm_geometry(unsigned arm, const Six& q);
 MotionBounds default_bounds();
 struct CollisionState {
     double closest = std::numeric_limits<double>::infinity();
+    double inter_arm = std::numeric_limits<double>::infinity();
     double hard_margin = std::numeric_limits<double>::infinity();
     int pair = -1;
     std::vector<CollisionRow> rows;

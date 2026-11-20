@@ -104,7 +104,7 @@ void collision_state(const std::array<ArmGeometry, 2>& arms, CollisionState& sta
         segments[i] = {t * Map(c.a), t * Map(c.b)};
     }
     state.rows.clear();
-    state.closest = state.hard_margin = std::numeric_limits<double>::infinity();
+    state.inter_arm = state.closest = state.hard_margin = std::numeric_limits<double>::infinity();
     state.pair = -1;
     for (size_t k = 0; k < std::size(pairs); ++k) {
         auto& p = pairs[k];
@@ -117,21 +117,32 @@ void collision_state(const std::array<ArmGeometry, 2>& arms, CollisionState& sta
         if (p.count && raw < .1)
             bound =
                 certificate(p, arms[a.side].frames[a.frame], arms[b.side].frames[b.frame], bound);
+        if (a.side != b.side)
+            state.inter_arm = std::min(state.inter_arm, bound.distance);
         if (bound.distance < state.closest) {
             state.closest = bound.distance;
             state.pair = k;
         }
         state.hard_margin =
             std::min({state.hard_margin, bound.distance - p.hard, raw - p.capsule_hard});
-        if (bound.distance >= .1)
-            continue;
-        JointVector gradient = JointVector::Zero();
-        project(gradient, arms[a.side], a, bound.point_a, bound.n);
-        project(gradient, arms[b.side], b, bound.point_b, -bound.n);
-        double lb = -.5 * (bound.distance - p.safe) / (.1 - p.safe);
-        if (a.side == b.side)
-            lb = std::min(0., lb);
-        state.rows.push_back({gradient, lb, bound.distance - p.safe});
+        auto add_row = [&](const Bound& contact, double safe, double influence, int id) {
+            if (contact.distance >= influence)
+                return;
+            JointVector gradient = JointVector::Zero();
+            project(gradient, arms[a.side], a, contact.point_a, contact.n);
+            project(gradient, arms[b.side], b, contact.point_b, -contact.n);
+            const double margin = contact.distance - safe;
+            state.rows.push_back(
+                {gradient, -.5 * margin / (influence - safe), margin, id, a.side == b.side});
+        };
+        add_row(bound, p.safe, .1, 2 * k);
+        // The candidate must also respect the measured broad-phase hard limit.
+        // Give that independent limit its own velocity damper when a mesh
+        // certificate supplies a tighter positive physical separation.
+        if (p.count && bound.distance > raw + 1e-10) {
+            Bound capsule{raw, delta / std::max(length, 1e-15), nearest.a, nearest.b};
+            add_row(capsule, p.capsule_hard + .0005, p.capsule_hard + .08, 2 * k + 1);
+        }
     }
 }
 } // namespace panthera

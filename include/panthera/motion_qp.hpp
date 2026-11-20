@@ -10,6 +10,8 @@ inline constexpr double control_dt = .002;
 struct CollisionRow {
     JointVector gradient;
     double lower, clearance_margin;
+    int pair = -1;
+    bool same_arm = false;
 };
 struct MotionBounds {
     JointVector lower, upper, max_speed, max_acceleration, max_lead;
@@ -27,7 +29,8 @@ class MotionQp {
     ~MotionQp();
     QpStep solve(const JointVector& measured, const JointVector& reference,
                  const JointVector& previous, const JointMatrix& hessian, const JointVector& linear,
-                 const MotionBounds& bounds, std::span<const CollisionRow> rows);
+                 const MotionBounds& bounds, std::span<const CollisionRow> rows,
+                 int max_solves = 3);
 
   private:
     struct Impl;

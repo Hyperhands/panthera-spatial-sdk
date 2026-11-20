@@ -63,7 +63,7 @@ MotionQp::~MotionQp() = default;
 QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference,
                        const JointVector& previous, const JointMatrix& hessian,
                        const JointVector& linear, const MotionBounds& limits,
-                       std::span<const CollisionRow> rows) {
+                       std::span<const CollisionRow> rows, int max_solves) {
     QpStep result{reference, JointVector::Zero()};
     const auto start = Clock::now();
     auto& qp = *impl_;
@@ -82,6 +82,12 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
         !vlo.allFinite() || !vhi.allFinite() || (lo.array() > hi.array()).any() ||
         (vlo.array() > vhi.array()).any())
         return result;
+    // Intersect the analytically equivalent velocity interval before sending
+    // an infeasible initial point to the interior-point solver.
+    if ((vlo.cwiseMax((lo - reference) / control_dt).array() >
+         vhi.cwiseMin((hi - reference) / control_dt).array() + 1e-12)
+            .any())
+        return result;
     qp.set(0, "R", hessian.data());
     qp.set(0, "r", linear.data());
     qp.set(0, "b", reference.data());
@@ -92,22 +98,29 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
     auto& order = qp.order;
     order.resize(rows.size());
     std::iota(order.begin(), order.end(), 0);
-    size_t used = std::min<size_t>(slots, order.size());
+
     for (auto& r : rows)
         if (!r.gradient.allFinite() || !std::isfinite(r.lower) ||
             !std::isfinite(r.clearance_margin))
             return result;
+    // Rigidly related shapes can have an identically zero distance derivative.
+    // Such a satisfied row provides no bound and has no strict interior for HPIPM.
+    std::erase_if(order, [&](auto i) {
+        return rows[i].gradient.cwiseAbs().maxCoeff() < 1e-12 && rows[i].lower <= 0.;
+    });
+    const size_t used = std::min<size_t>(slots, order.size());
     std::partial_sort(order.begin(), order.begin() + used, order.end(), [&](auto a, auto b) {
         return rows[a].clearance_margin < rows[b].clearance_margin;
     });
-    for (int attempt = 0; attempt < 3; ++attempt) {
+    for (int attempt = 0; attempt < std::min(3, max_solves); ++attempt) {
         Eigen::Matrix<double, slots, 12> d = Eigen::Matrix<double, slots, 12>::Zero();
         Eigen::Matrix<double, slots, 1> lb = Eigen::Matrix<double, slots, 1>::Constant(-10),
                                         ub = Eigen::Matrix<double, slots, 1>::Constant(100);
         for (size_t i = 0; i < used; ++i) {
             const auto& r = rows[order[i]];
-            d.row(i) = r.gradient.transpose();
-            lb[i] = r.lower;
+            const auto scale = std::max(r.gradient.norm(), 1e-10);
+            d.row(i) = r.gradient.transpose() / scale;
+            lb[i] = r.lower / scale;
         }
         qp.set(0, "D", d.data());
         qp.set(0, "lg", lb.data());
