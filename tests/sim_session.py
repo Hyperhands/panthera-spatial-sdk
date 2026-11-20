@@ -20,6 +20,9 @@ class Board(SessionBoard):
         self.reordered = self.lost_result = False
 
     def rpc(self, mid, payload):
+        if mid == 1025 and self.is_right and self.scenario == "watchdog":
+            if decode("OperationRequest", payload)["operation"] == 18:
+                return None  # Drop every soft-stop request before execution.
         response = super().rpc(mid, payload)
         if mid == 1025 and self.is_right:
             op = decode("OperationRequest", payload)["operation"]
@@ -64,6 +67,8 @@ def run(exe, scenario):
         try:
             lr, lm, rr, rm = map(int, client.stdout.readline().split())
             cycle = 0
+            next_tick = time.monotonic()
+            holds_at_loss = None
             injected = False
             deadline = time.monotonic() + 8
             while client.poll() is None and time.monotonic() < deadline:
@@ -71,11 +76,15 @@ def run(exe, scenario):
                 right.service(rr, rm)
                 if left.hand_seq and not injected:
                     injected = True
+                    if scenario == "uplink":
+                        holds_at_loss = [b.holds for b in boards]
                     if scenario == "reboot":
                         right.reset()
                     elif scenario == "jump":
                         right.arm["q_rad"][3] += math.tau
-                    elif scenario == "fault":
+                        right.tick(rr, cycle)
+                        right.arm["q_rad"][3] -= math.tau
+                    elif scenario in ("fault", "watchdog"):
                         right.arm["fault_code_raw"][0] = 10
                     elif scenario == "success":
                         msg = zero("FaultEvent")
@@ -84,15 +93,30 @@ def run(exe, scenario):
                         for _ in range(2):
                             right.wire_seq += 1
                             right.pending[right.wire_seq] = (frame(769, encode("FaultEvent",msg),right.wire_boot,right.wire_seq,1),0,0)
+                if scenario == "success" and cycle in (50, 200):
+                    # Omit one ArmState sequence, as if its datagram was lost.
+                    right.sequence["ArmState"] += 1
                 left.tick(lr, cycle)
                 if not (injected and scenario == "uplink"):
                     right.tick(rr, cycle)
                 cycle += 1
-                time.sleep(.001)
+                next_tick += .002
+                now = time.monotonic()
+                if next_tick <= now:
+                    next_tick += (1 + int((now - next_tick) / .002)) * .002
+                time.sleep(max(0, next_tick - now))
             assert client.wait(timeout=1) == 0, scenario
             assert left.activations == left.soft_stops and left.activations >= 1, scenario
+            if scenario == "watchdog":
+                # No more host frames arrive. The board's own timeout must clear ownership.
+                time.sleep(.055)
+                right.service(rr, rm)
+                assert right.activations == 1 and right.soft_stops == 0
             assert not any(b.active or b.lease for b in boards), scenario
             assert all(11 not in b.operations and b.holds for b in boards)
+            if scenario == "uplink":
+                assert all(b.holds > initial for b, initial in zip(boards, holds_at_loss))
+                assert right.soft_stops == 1  # Downlink works throughout loss of telemetry.
             if scenario == "reboot":
                 assert left.activations == right.activations == 2 and right.soft_stops == 1
             if scenario == "timeout":
@@ -107,5 +131,5 @@ def run(exe, scenario):
                 b.close()
 
 
-for case in ("success", "refused", "timeout", "uplink", "reboot", "jump", "fault"):
+for case in ("success", "refused", "timeout", "uplink", "reboot", "jump", "fault", "watchdog"):
     run(sys.argv[1], case)

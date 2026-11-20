@@ -35,6 +35,7 @@ template <typename T> struct TelemetrySample {
 struct BoardState {
     std::uint64_t boot_id = 0;
     std::uint64_t restarts = 0;
+    std::uint64_t encoder_jumps = 0;
     std::optional<TelemetrySample<arm_state_value_t>> arm;
     std::optional<TelemetrySample<hand_state_value_t>> hand;
     std::optional<TelemetrySample<fault_snapshot_value_t>> faults;

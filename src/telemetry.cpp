@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numbers>
 #include <stdexcept>
 #include <system_error>
+#include <type_traits>
 #include <vector>
 
 namespace panthera {
@@ -151,6 +153,23 @@ struct BoardTelemetry::Impl {
             state = {};
             state.restarts = retired_boots.size();
             state.boot_id = h.source_boot_id;
+        }
+        if constexpr (std::is_same_v<T, arm_state_value_t>) {
+            // poll() can drain multiple samples. Keep a branch crossing visible even
+            // when a second crossing restores the original angle in the same batch.
+            if (state.arm) {
+                const auto& prior = state.arm->value;
+                const std::uint32_t delta = h.sequence - prior.header.sequence;
+                if (delta && delta < 0x80000000u) {
+                    for (unsigned j = 0; j < 6; ++j) {
+                        if ((prior.valid_q_mask & value.valid_q_mask & (1u << j)) &&
+                            std::abs(value.q_rad[j] - prior.q_rad[j]) > std::numbers::pi_v<float>) {
+                            ++state.encoder_jumps;
+                            break;
+                        }
+                    }
+                }
+            }
         }
         publish(state.*field, value, HostClock::now());
     }

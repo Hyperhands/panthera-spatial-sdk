@@ -46,18 +46,25 @@ int main(int argc, char** argv) try {
     session.enable(3s);
     require(session.rpc_timing(Side::left).completed >= 6, "Missing RPC measurements");
     Joints fingers{.1f, .2f, .3f, .4f, .5f, .6f};
-    session.send_hand(Side::left, fingers, 80);
+    while (!session.send_hand(Side::left, fingers, 80)) {
+        session.hold();
+        std::this_thread::sleep_for(1ms);
+    }
     bool frozen = false, stopped = false, read_hand = false;
-    auto deadline = HostClock::now() + 1s;
+    const auto started = HostClock::now();
+    const auto deadline = started + 4s;
+    auto next_tick = started;
+    unsigned cycles = 0, missed = 0, fault_events = 0;
     while (HostClock::now() < deadline) {
         try {
             frozen |= session.hold() == HoldStatus::frozen;
         } catch (const std::runtime_error& e) {
             std::string why = e.what();
-            std::string expected = scenario == "reboot"   ? "restarted"
-                                   : scenario == "uplink" ? "feedback expired"
-                                   : scenario == "jump"   ? "branch jump"
-                                                          : "Board fault";
+            std::string expected = scenario == "reboot"     ? "restarted"
+                                   : scenario == "uplink"   ? "feedback expired"
+                                   : scenario == "watchdog" ? "unconfirmed"
+                                   : scenario == "jump"     ? "branch jump"
+                                                            : "Board fault";
             if (scenario == "success" || why.find(expected) == std::string::npos)
                 throw;
             stopped = true;
@@ -65,13 +72,30 @@ int main(int argc, char** argv) try {
         }
         auto angles = session.state(Side::left).active_hand_angles(HostClock::now(), 30ms);
         read_hand |= angles && *angles == fingers;
-        if (scenario == "success" && read_hand &&
-            session.take_fault_events(Side::right).size() == 1)
+        fault_events += session.take_fault_events(Side::right).size();
+        ++cycles;
+        if (scenario == "success" && HostClock::now() - started >= 1s)
             break;
-        std::this_thread::sleep_for(1ms);
+        next_tick += 2ms;
+        auto now = HostClock::now();
+        if (next_tick <= now) {
+            auto skipped = 1 + (now - next_tick) / 2ms;
+            next_tick += skipped * 2ms;
+            missed += static_cast<unsigned>(skipped);
+        }
+        std::this_thread::sleep_until(next_tick);
     }
     if (scenario == "success") {
-        require(read_hand && HostClock::now() < deadline,
+        const auto elapsed = std::chrono::duration<double>(HostClock::now() - started).count();
+        std::cerr << "Hold loop: " << cycles << " ticks, " << elapsed * 1000 / (cycles - 1)
+                  << " ms/tick, missed deadlines: " << missed << '\n';
+        for (auto side : {Side::left, Side::right}) {
+            const auto& rpc = session.rpc_timing(side);
+            std::cerr << "Node " << session.state(side).arm->value.header.source_node
+                      << ": RPC last/max " << rpc.last.count() << "/" << rpc.maximum.count()
+                      << " us, arm sequence gaps " << session.state(side).arm->missing << '\n';
+        }
+        require(read_hand && fault_events == 1 && HostClock::now() < deadline,
                 "Hand echo or reliable fault event missing");
         session.stop();
     } else {
@@ -84,6 +108,8 @@ int main(int argc, char** argv) try {
         } catch (const std::logic_error&) {
         }
         if (scenario == "reboot") {
+            std::this_thread::sleep_for(80ms);
+            require(!session.active(), "Session recovered without explicit enable");
             session.enable(3s);
             session.hold();
             session.stop();

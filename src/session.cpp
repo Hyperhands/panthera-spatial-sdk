@@ -198,6 +198,7 @@ class SessionPeer {
         }
     }
     void calibrate() {
+        initial_jumps = state->encoder_jumps;
         for (size_t j = 0; j < 6; ++j) {
             auto raw = state->arm->value.q_rad[j];
             zero[j] = turn * std::floor((raw - branch[j]) / turn + .5f);
@@ -206,6 +207,8 @@ class SessionPeer {
         }
     }
     void update_angles() {
+        if (state->encoder_jumps != initial_jumps)
+            throw std::runtime_error("Encoder branch jump");
         for (size_t j = 0; j < 6; ++j) {
             auto raw = state->arm->value.q_rad[j];
             if (!std::isfinite(raw) || std::abs(raw - previous_raw[j]) > turn / 2)
@@ -254,7 +257,7 @@ class SessionPeer {
     size_t request_size{};
     std::uint32_t sequence{}, wire_sequence{}, request_id{};
     std::uint16_t message{}, operation{};
-    std::uint64_t last_event{};
+    std::uint64_t last_event{}, initial_jumps{};
     Time started{}, sent{};
     std::optional<Result> result;
     bool identity(const stream_header_value_t& h) const {
@@ -287,7 +290,7 @@ struct DualSession::Impl {
     Gravity gravity;
     bool active{};
     Time last_hold{};
-    std::array<bool, 2> claiming{};
+    std::array<bool, 2> claiming{}, releasing{};
 
     Impl(BoardAddress l, BoardAddress r, Gravity g)
         : left(l, boot_nonce()), right(r, left.host), gravity(std::move(g)) {
@@ -403,7 +406,11 @@ struct DualSession::Impl {
         active = false;
         std::array<bool, 2> pending{};
         bool confirmed = true;
-        auto release = [&](SessionPeer& p) { p.start(p.activation_sent ? 18 : 2); };
+        auto release = [&](size_t i) {
+            auto& p = *peers[i];
+            p.start(p.activation_sent ? 18 : 2);
+            releasing[i] = true;
+        };
         for (size_t i = 0; i < 2; ++i) {
             auto& p = *peers[i];
             if (p.boot != p.state->boot_id) {
@@ -413,12 +420,14 @@ struct DualSession::Impl {
             }
             pending[i] = claiming[i] || p.lease;
             if (!pending[i]) {
+                p.activation_sent = false;
+                releasing[i] = false;
                 p.cancel();
                 continue;
             }
-            if (p.lease)
+            if (p.lease && !releasing[i])
                 try {
-                    release(p);
+                    release(i);
                 } catch (...) {
                     confirmed = false;
                     pending[i] = false;
@@ -437,11 +446,18 @@ struct DualSession::Impl {
                             claiming[i] = false;
                             if (!r->status && r->lease) {
                                 p.lease = r->lease;
-                                release(p);
+                                release(i);
                                 continue;
                             }
-                        } else if (r->status)
-                            confirmed = false;
+                        } else {
+                            releasing[i] = false;
+                            if (r->status)
+                                confirmed = false;
+                            // Firmware reports its remaining lease even on a failed soft hold.
+                            if (r->lease != p.lease || !r->status)
+                                p.lease = 0;
+                        }
+                        p.activation_sent = p.lease && p.activation_sent;
                         pending[i] = false;
                     } catch (...) {
                         confirmed = false;
@@ -451,15 +467,15 @@ struct DualSession::Impl {
             if (pending[0] || pending[1])
                 std::this_thread::sleep_for(1ms);
         }
-        for (auto p : peers) {
-            p->cancel();
-            p->lease = 0;
-            p->activation_sent = false;
-        }
-        claiming = {};
+        // Keep unresolved RPCs and their operation IDs for an explicit stop retry.
         return confirmed && !pending[0] && !pending[1];
     }
     void enable(Time deadline) {
+        if (left.lease || right.lease || claiming[0] || claiming[1]) {
+            refresh(false);
+            if (!cleanup())
+                throw std::runtime_error("Previous board release unconfirmed");
+        }
         do {
             refresh(false);
             if (left.state->arm && right.state->arm)
