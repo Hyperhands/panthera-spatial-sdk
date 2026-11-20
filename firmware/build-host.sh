@@ -8,7 +8,7 @@ case "$side" in left|right);; *) exit 2;; esac
 export ZEPHYR_TOOLCHAIN_VARIANT=zephyr SOURCE_DATE_EPOCH=0
 modules=$(dirname "$ZEPHYR_BASE")/modules
 out=${2:-"$root/../build/firmware-$side"}
-cmake -S "$root/source" -B "$out" -G Ninja -DBOARD=frdm_mcxn947/mcxn947/cpu0 \
+cmake -S "$root/source" -B "$out" -G Ninja -DBUILD_VERSION=v4.4.0-17124-g545fb948fe7f -DBOARD=frdm_mcxn947/mcxn947/cpu0 \
     -DZEPHYR_MODULES="$modules/hal/cmsis_6;$modules/hal/nxp;$modules/debug/segger" \
     -DDTC_OVERLAY_FILE="$root/local-mcxn947.overlay" \
     -DEXTRA_CONF_FILE="$root/local-workspace.conf;$root/dual-common.conf;$root/boards/$side.conf;$root/host-control.conf"

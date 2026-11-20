@@ -6,3 +6,4 @@
 *.obj text eol=lf
 *.mtl text eol=lf
 generated/protocol/robot_messages.c whitespace=-blank-at-eof
+firmware/images/*.bin binary

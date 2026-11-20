@@ -5,7 +5,7 @@ Panthera-HT 双臂 + A2/L1 灵巧手的上位机空间控制 SDK。设计目标�
 - C++ 核心 + pybind11 Python 接口；
 - 固件、wirelink、WLC 及外部依赖全部以源码固化在本仓库。
 
-> 状态：已接入主机构建、双板遥测与控制会话、协议编解码器和 HPIPM，双臂模型（M0）已完成。工作包与验收条件见 [docs/PLAN.md](docs/PLAN.md)。
+> C++ 双臂控制器已通过 UDP 回环运动验收。左右板 host-control 镜像已构建，实机验收列在 WP-H。见[实施计划](docs/PLAN.md)。
 
 | 目录 | 内容 | 状态 |
 | --- | --- | --- |
@@ -15,7 +15,10 @@ Panthera-HT 双臂 + A2/L1 灵巧手的上位机空间控制 SDK。设计目标�
 | [third_party/](third_party/VERSIONS.md)、[protocol/](protocol)、[generated/protocol/](generated/protocol) | 固定依赖、板端协议和编解码器 | 已接入主机构建 |
 | [src/](src)、[examples/](examples) | 双板遥测、管理 RPC、租约、姿态保持与手部透传 | 已通过本机回环验收 |
 | [sim/](sim) | UDP 回环双板遥测与接管模拟器 | 已接入会话回归测试 |
-| `firmware/`、`python/` | 固件、Python 接口 | 待实现 |
+| [generated/model/](generated/model)、[tools/codegen/](tools/codegen) | 双臂 FK、雅可比、重力、碰撞几何及逐对阈值 | 已生成并校验 |
+| [controller.hpp](include/panthera/controller.hpp) | 双臂任务空间 QP、关节目标、手部透传与专家模式 | 已通过闭环仿真 |
+| [firmware/](firmware/README.md) | 固定源版本、左右板配置、构建与烧录工具及预编译镜像 | 已通过原生测试和重复构建 |
+| `python/` | Python 接口与 wheel | WP-F 待实现 |
 
 ## 构建主机代码
 
@@ -48,7 +51,21 @@ C++ 接口见 [telemetry.hpp](include/panthera/telemetry.hpp)。每个接收器�
 
 同一线程以 2 ms 为目标周期调用 `hold()`。任一侧反馈年龄达到 10 ms 时返回 `HoldStatus::frozen`，两臂均保持原参考。会话有效且反馈新鲜时，`send_hand()` 可透传六个主动手关节目标与持续时间。显式调用 `stop()` 会等待板端软停结果。反馈年龄达到 50 ms、板端故障或单板重启会中止会话并抛出异常。重启侧由固件自动回零，在线侧收到软停请求，恢复需要再次调用 `enable()`。
 
-运行 `ctest --test-dir build/host -R sim_session -V` 可复现接管、回滚与故障注入。测试只绑定本机回环端口，使用指定测试力矩核对帧内容。板端模拟器覆盖通信与状态切换，实际轴运动和回零轨迹留待控制器仿真与实机验收。
+运行 `ctest --test-dir build/host -R sim_session -V` 可复现接管、回滚与故障注入。测试只绑定本机回环端口，使用指定测试力矩核对帧内容。板端模拟器覆盖通信与状态切换，关节运动仿真见下节。实际回零轨迹在 WP-H 验证。
+
+## C++ 空间控制
+
+链接 CMake 目标 `panthera_controller`。构造 `panthera::DualArm` 时可传入两板地址和 `ControlConfig`。配置包含关节速度、加速度、参考超前量、任务权重、位姿增益和插值速率。默认 J5 软限位为 ±60°。
+
+`enable()` 完成双板接管并启动主机 2 ms 线程。调用方可从其他线程调用 `setPoseTarget`、`setTwistTarget`、`setJointTarget` 和 `setHandTarget`。位姿使用世界坐标系，TCP 速度按线速度 m/s 和角速度 rad/s 排列。臂关节角度使用扣除整圈编码器偏移后的弧度。用 `state()` 读取测量与参考关节角、两臂 TCP、碰撞间隙、QP 用时、冻结状态和故障。用 `softStop()` 停止控制并等待板端确认。
+
+**专家模式会绕过主机运动监控、QP、碰撞检查和关节限幅。** 显式调用 `enterExpertMode(ExpertAck::IUnderstandNoSafety)` 后，正常控制线程停止。`sendMit()` 按原始编码器坐标发送单侧的 30 个 MIT 浮点数，调用方负责两侧指令的发送节奏。板端继续执行既有租约校验和看门狗。
+
+```bash
+ctest --test-dir build/host -R 'geometry|motion_qp|control_law|sim_controller' -V
+```
+
+`sim_controller` 自动启动两个本机 UDP 模拟板和 C++ 控制器，验证直线与阶跃跟踪、运动中的单向断链、重启、跟踪滞后和专家指令。模拟板使用简化的重力平衡关节伺服模型。数值验收记录见[实机前验证](docs/pre-hardware.md)。
 
 ## 模型
 
