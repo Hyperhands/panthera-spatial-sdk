@@ -316,12 +316,14 @@ struct DualSession::Impl {
                     throw std::runtime_error("Board restarted: node " +
                                              std::to_string(p->address.realtime.board_node));
     }
-    void wait(Time deadline) {
+    void wait(Time deadline, void (*check_interrupt)()) {
+        if (check_interrupt)
+            check_interrupt();
         if (HostClock::now() >= deadline)
             throw std::runtime_error("Dual-board takeover timed out");
         timer.until(std::min(deadline, HostClock::now() + 1ms));
     }
-    void feedback(Time deadline, bool after_config = false) {
+    void feedback(Time deadline, void (*check_interrupt)(), bool after_config = false) {
         const auto after = HostClock::now();
         while (true) {
             refresh();
@@ -335,7 +337,7 @@ struct DualSession::Impl {
             }
             if (ready)
                 return;
-            wait(deadline);
+            wait(deadline, check_interrupt);
         }
     }
     void holds(const JointPair& velocity = {}) {
@@ -344,7 +346,7 @@ struct DualSession::Impl {
         right.hold(r, velocity[1]);
         last_hold = HostClock::now();
     }
-    void stage(unsigned op, Time deadline) {
+    void stage(unsigned op, Time deadline, void (*check_interrupt)()) {
         std::array<bool, 2> done{};
         auto start = [&](size_t i) {
             if (op == 1)
@@ -404,7 +406,7 @@ struct DualSession::Impl {
             }
             if (done[0] && done[1])
                 return;
-            wait(deadline);
+            wait(deadline, check_interrupt);
         }
     }
     // A pending claim may already have been applied. Recover its cached result
@@ -477,7 +479,7 @@ struct DualSession::Impl {
         // Keep unresolved RPCs and their operation IDs for an explicit stop retry.
         return confirmed && !pending[0] && !pending[1];
     }
-    void enable(Time deadline, const Preflight& preflight) {
+    void enable(Time deadline, const Preflight& preflight, void (*check_interrupt)()) {
         if (left.lease || right.lease || claiming[0] || claiming[1]) {
             refresh(false);
             if (!cleanup())
@@ -487,24 +489,24 @@ struct DualSession::Impl {
             refresh(false);
             if (left.state->arm && right.state->arm)
                 break;
-            wait(deadline);
+            wait(deadline, check_interrupt);
         } while (true);
         for (auto p : peers)
             p->discover();
-        stage(19, deadline);
-        stage(10, deadline);
-        feedback(deadline);
-        stage(1, deadline);
-        stage(13, deadline);
-        stage(0, deadline);
-        feedback(deadline, true);
+        stage(19, deadline, check_interrupt);
+        stage(10, deadline, check_interrupt);
+        feedback(deadline, check_interrupt);
+        stage(1, deadline, check_interrupt);
+        stage(13, deadline, check_interrupt);
+        stage(0, deadline, check_interrupt);
+        feedback(deadline, check_interrupt, true);
         for (auto p : peers)
             p->calibrate();
         if (preflight)
             preflight({left.measured, right.measured});
         holds();
         auto activation_deadline = std::min(deadline, HostClock::now() + 100ms);
-        stage(3, activation_deadline);
+        stage(3, activation_deadline, check_interrupt);
         // A reliable result may precede the first active realtime sample.
         auto next_hold = HostClock::now() + 2ms;
         while (true) {
@@ -524,7 +526,7 @@ struct DualSession::Impl {
                 holds();
                 next_hold = HostClock::now() + 2ms;
             }
-            wait(activation_deadline);
+            wait(activation_deadline, check_interrupt);
         }
         active = true;
     }
@@ -570,13 +572,14 @@ DualSession::~DualSession() {
 }
 bool DualSession::active() const { return impl_->active; }
 void DualSession::enable(std::chrono::milliseconds timeout) { enable_checked(timeout, {}); }
-void DualSession::enable_checked(std::chrono::milliseconds timeout, const Preflight& preflight) {
+void DualSession::enable_checked(std::chrono::milliseconds timeout, const Preflight& preflight,
+                                 void (*check_interrupt)()) {
     if (active())
         throw std::logic_error("Session already active");
     if (timeout <= 0ms)
         throw std::invalid_argument("Positive takeover timeout required");
     try {
-        impl_->enable(HostClock::now() + timeout, preflight);
+        impl_->enable(HostClock::now() + timeout, preflight, check_interrupt);
     } catch (...) {
         impl_->rollback();
     }

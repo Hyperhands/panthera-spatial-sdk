@@ -44,6 +44,13 @@ target_link_libraries(panthera_controller PUBLIC panthera_motion panthera_teleme
 if(WIN32)
     target_compile_definitions(panthera_controller PRIVATE _WIN32_WINNT=0x0601 WIN32_LEAN_AND_MEAN NOMINMAX)
 endif()
+option(PANTHERA_BUILD_PYTHON "Build the Python SDK extension" OFF)
+if(PANTHERA_BUILD_PYTHON)
+    pybind11_add_module(_core MODULE NO_EXTRAS python/panthera_sdk/_core.cpp
+        python/panthera_sdk/telemetry.cpp)
+    target_link_libraries(_core PRIVATE panthera_controller)
+    install(TARGETS _core DESTINATION panthera_sdk COMPONENT python)
+endif()
 add_executable(panthera-read-state examples/read_state.cpp)
 target_link_libraries(panthera-read-state PRIVATE panthera_telemetry)
 

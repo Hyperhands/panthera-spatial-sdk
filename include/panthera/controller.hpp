@@ -39,6 +39,8 @@ class DualArm {
             ControlConfig config = {});
     ~DualArm();
     void enable(std::chrono::milliseconds timeout = std::chrono::seconds(30));
+    // check_interrupt may throw while waiting; a partial takeover is rolled back.
+    void enable(std::chrono::milliseconds timeout, void (*check_interrupt)());
     void setPoseTarget(Side side, const Eigen::Isometry3d& pose,
                        const Six& feedforward = Six::Zero());
     void setTwistTarget(Side side, const Six& twist);

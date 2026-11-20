@@ -41,7 +41,8 @@ class DualSession {
     friend class DualArm;
     using JointPair = std::array<Joints, 2>;
     using Preflight = std::function<void(const JointPair&)>;
-    void enable_checked(std::chrono::milliseconds timeout, const Preflight& preflight);
+    void enable_checked(std::chrono::milliseconds timeout, const Preflight& preflight,
+                        void (*check_interrupt)() = nullptr);
     using Control = std::function<void(const JointPair&, JointPair&, JointPair&)>;
     HoldStatus control(const Control& compute);
     void raw(Side side, const std::array<float, 30>& mit);

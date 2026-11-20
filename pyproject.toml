@@ -1,0 +1,20 @@
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "panthera-sdk"
+version = "0.1.0"
+description = "Panthera dual-arm spatial control SDK"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23"]
+
+[tool.scikit-build]
+wheel.packages = ["python/panthera_sdk"]
+wheel.exclude = ["**/*.cpp"]
+build.targets = ["_core"]
+install.components = ["python"]
+
+[tool.scikit-build.cmake.define]
+PANTHERA_BUILD_PYTHON = "ON"
+BUILD_TESTING = "OFF"

@@ -170,13 +170,15 @@ DualArm::~DualArm() {
     } catch (...) {
     }
 }
-void DualArm::enable(std::chrono::milliseconds timeout) {
+void DualArm::enable(std::chrono::milliseconds timeout) { enable(timeout, nullptr); }
+void DualArm::enable(std::chrono::milliseconds timeout, void (*check_interrupt)()) {
     auto& i = *impl_;
     std::lock_guard guard(i.lifecycle);
     if (i.running || i.expert)
         throw std::logic_error("Controller already active");
     i.join_worker();
-    i.session.enable_checked(timeout, [&](const Pair& p) { i.law.reset(join(p)); });
+    i.session.enable_checked(
+        timeout, [&](const Pair& p) { i.law.reset(join(p)); }, check_interrupt);
     try {
         {
             std::lock_guard lock(i.mutex);

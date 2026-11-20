@@ -21,6 +21,7 @@ jobs:
           install: >-
             git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-python-numpy mingw-w64-ucrt-x86_64-python-pip
       - name: Build and test on Windows x64 (MinGW-w64)
         if: runner.os == 'Windows'
         shell: msys2 {0}
@@ -38,3 +39,22 @@ jobs:
         run: |
           cargo run --locked --manifest-path third_party/wlc/Cargo.toml --target-dir build/wlc -- compile protocol/robot_messages.wl --profile protocol/board_rt.bind.wl --out-dir build/wlc-protocol
           diff -ru --exclude=value_init.h generated/protocol build/wlc-protocol
+
+      - name: Build and exercise installed Linux wheel
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          python3 -m venv build/wheel-env
+          source build/wheel-env/bin/activate
+          bash tools/ci/test-wheel.sh
+      - name: Build and exercise installed UCRT64 wheel
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          python -m venv --system-site-packages build/wheel-env
+          source build/wheel-env/bin/activate || source build/wheel-env/Scripts/activate
+          bash tools/ci/test-wheel.sh
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-24.04' || runner.os == 'Windows'
+        with:
+          name: python-wheel-${{ matrix.os }}
+          path: build/wheels/*.whl
