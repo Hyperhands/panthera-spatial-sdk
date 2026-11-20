@@ -56,6 +56,8 @@ class BoardTelemetry {
     std::uint16_t local_port() const;
 
   private:
+    friend class SessionPeer;
+    void send(std::uint16_t id, const std::uint8_t* payload, std::size_t length);
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

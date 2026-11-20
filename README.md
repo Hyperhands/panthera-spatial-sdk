@@ -5,7 +5,7 @@ Panthera-HT 双臂 + A2/L1 灵巧手的上位机空间控制 SDK。设计目标�
 - C++ 核心 + pybind11 Python 接口；
 - 固件、wirelink、WLC 及外部依赖全部以源码固化在本仓库。
 
-> 状态：已接入主机构建、双板只读遥测、协议编解码器和 HPIPM，双臂模型（M0）已完成。工作包与验收条件见 [docs/PLAN.md](docs/PLAN.md)。
+> 状态：已接入主机构建、双板遥测与控制会话、协议编解码器和 HPIPM，双臂模型（M0）已完成。工作包与验收条件见 [docs/PLAN.md](docs/PLAN.md)。
 
 | 目录 | 内容 | 状态 |
 | --- | --- | --- |
@@ -13,8 +13,8 @@ Panthera-HT 双臂 + A2/L1 灵巧手的上位机空间控制 SDK。设计目标�
 | [model/panthera_dual_description](model/panthera_dual_description/README.md) | 整机 URDF/SRDF、网格、装配参数、校验 | ✅ |
 | [tools/model](tools/model) | 模型生成（`build_description.py`）与校验（`verify_description.py`） | ✅ |
 | [third_party/](third_party/VERSIONS.md)、[protocol/](protocol)、[generated/protocol/](generated/protocol) | 固定依赖、板端协议和编解码器 | 已接入主机构建 |
-| [src/](src)、[examples/](examples) | 双板只读遥测与读状态示例 | WP-B 进行中 |
-| [sim/](sim) | UDP 回环双板遥测模拟器 | WP-B 进行中 |
+| [src/](src)、[examples/](examples) | 双板遥测、管理 RPC、租约、姿态保持与手部透传 | 已通过本机回环验收 |
+| [sim/](sim) | UDP 回环双板遥测与接管模拟器 | 已接入会话回归测试 |
 | `firmware/`、`python/` | 固件、Python 接口 | 待实现 |
 
 ## 构建主机代码
@@ -41,6 +41,14 @@ ctest --test-dir build/host --output-on-failure
 本机联调时，在一个终端运行 `python3 sim/telemetry.py`，另一个终端运行 `build/host/panthera-read-state --loopback`。模拟器以 2 ms 目标周期发布两臂的静止零位，另外发布手、故障和诊断遥测。
 
 C++ 接口见 [telemetry.hpp](include/panthera/telemetry.hpp)。每个接收器由一个线程调用 `poll()`；快照包含臂、手、故障和诊断各自的最近一帧及序号缺口计数。`active_hand_angles(now, max_age)` 按手指令的六个主动关节顺序返回固件弧度值，数据过期、离线或无效时返回空值。原始 11 项反馈仍可从手部样本读取。重启事件由 `restarts` 与新的 `boot_id` 标识。
+
+## 双板控制会话
+
+`DualSession::enable(timeout)` 等待两板回零、申请租约、配置策略，并用当前姿态预发保持帧。两板都确认主机控制后才返回。调用方提供六轴重力矩函数，输入是扣除整圈编码器偏移后的关节弧度，输出单位为 N·m。会话接口见 [session.hpp](include/panthera/session.hpp)。
+
+同一线程以 2 ms 为目标周期调用 `hold()`。任一侧反馈年龄达到 10 ms 时返回 `HoldStatus::frozen`，两臂均保持原参考。会话有效且反馈新鲜时，`send_hand()` 可透传六个主动手关节目标与持续时间。显式调用 `stop()` 会等待板端软停结果。反馈年龄达到 50 ms、板端故障或单板重启会中止会话并抛出异常。重启侧由固件自动回零，在线侧收到软停请求，恢复需要再次调用 `enable()`。
+
+运行 `ctest --test-dir build/host -R sim_session -V` 可复现接管、回滚与故障注入。测试只绑定本机回环端口，使用指定测试力矩核对帧内容。板端模拟器覆盖通信与状态切换，实际轴运动和回零轨迹留待控制器仿真与实机验收。
 
 ## 模型
 

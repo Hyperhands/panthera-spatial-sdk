@@ -28,7 +28,12 @@ add_library(panthera_protocol STATIC
 target_include_directories(panthera_protocol PUBLIC generated/protocol)
 target_link_libraries(panthera_protocol PUBLIC Wirelink::wirelink)
 
-add_library(panthera_telemetry src/telemetry.cpp)
+add_library(panthera_telemetry src/telemetry.cpp src/session.cpp)
+target_include_directories(panthera_telemetry SYSTEM PRIVATE "${WIRELINK_ASIO_INCLUDE_DIR}")
+if(WIN32)
+    target_compile_definitions(panthera_telemetry PRIVATE _WIN32_WINNT=0x0601 WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_link_libraries(panthera_telemetry PRIVATE ws2_32 mswsock)
+endif()
 target_include_directories(panthera_telemetry PUBLIC include)
 target_link_libraries(panthera_telemetry PUBLIC panthera_protocol PRIVATE Wirelink::asio_udp)
 add_executable(panthera-read-state examples/read_state.cpp)
@@ -41,6 +46,11 @@ if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(NAME protocol_provenance
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci/check_protocol.py")
+    add_executable(session_client_test tests/session_client.cpp)
+    target_link_libraries(session_client_test PRIVATE panthera_telemetry)
+    add_test(NAME sim_session
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/sim_session.py" $<TARGET_FILE:session_client_test>)
+    set_tests_properties(sim_session PROPERTIES TIMEOUT 65)
     add_executable(telemetry_capture_test tests/telemetry_capture.cpp)
     target_link_libraries(telemetry_capture_test PRIVATE panthera_telemetry)
     add_test(NAME sim_telemetry

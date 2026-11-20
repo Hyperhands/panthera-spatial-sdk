@@ -181,6 +181,10 @@ BoardTelemetry::BoardTelemetry(const RealtimeAddress& address)
 BoardTelemetry::~BoardTelemetry() = default;
 std::uint16_t BoardTelemetry::local_port() const { return impl_->socket->local_port(); }
 
+void BoardTelemetry::send(std::uint16_t id, const std::uint8_t* payload, std::size_t length) {
+    check_link(wl_send_unreliable(&impl_->link, id, payload, length));
+}
+
 const BoardState& BoardTelemetry::poll() {
     auto& i = *impl_;
     const auto rc = i.socket->service();
