@@ -29,7 +29,8 @@ void publish(std::optional<TelemetrySample<T>>& sample, const T& message,
         }
         missing = sample->missing + delta - 1;
     }
-    sample.emplace(TelemetrySample<T>{message, now, missing});
+    const auto received = sample ? sample->received + 1 : 1;
+    sample.emplace(TelemetrySample<T>{message, now, missing, received});
 }
 } // namespace
 

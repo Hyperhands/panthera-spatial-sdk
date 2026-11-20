@@ -14,7 +14,8 @@ Panthera-HT 双臂 + A2/L1 灵巧手的上位机空间控制 SDK。设计目标�
 | [tools/model](tools/model) | 模型生成（`build_description.py`）与校验（`verify_description.py`） | ✅ |
 | [third_party/](third_party/VERSIONS.md)、[protocol/](protocol)、[generated/protocol/](generated/protocol) | 固定依赖、板端协议和编解码器 | 已接入主机构建 |
 | [src/](src)、[examples/](examples) | 双板只读遥测与读状态示例 | WP-B 进行中 |
-| `firmware/`、`python/`、`sim/` | 固件、Python 接口与模拟板 | 待实现 |
+| [sim/](sim) | UDP 回环双板遥测模拟器 | WP-B 进行中 |
+| `firmware/`、`python/` | 固件、Python 接口 | 待实现 |
 
 ## 构建主机代码
 
@@ -36,6 +37,8 @@ ctest --test-dir build/host --output-on-failure
 ## 读取两板状态
 
 主机网卡配置为 `192.168.10.1` 后，运行 `build/host/panthera-read-state`（Windows 加 `.exe`）。示例绑定 UDP 5005、5015，收到两板新鲜的六轴反馈后输出原始编码器角度（rad）并退出。该入口只订阅遥测，不申请控制租约。板端启动回零由固件配置决定。
+
+本机联调时，在一个终端运行 `python3 sim/telemetry.py`，另一个终端运行 `build/host/panthera-read-state --loopback`。模拟器以 2 ms 目标周期发布两臂的静止零位，另外发布手、故障和诊断遥测。
 
 C++ 接口见 [telemetry.hpp](include/panthera/telemetry.hpp)。每个接收器由一个线程调用 `poll()`；快照包含臂、手、故障和诊断各自的最近一帧及序号缺口计数。手角度保留固件的 11 项顺序。重启事件由 `restarts` 与新的 `boot_id` 标识。
 

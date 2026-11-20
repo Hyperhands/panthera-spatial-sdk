@@ -28,6 +28,7 @@ template <typename T> struct TelemetrySample {
     T value;
     HostClock::time_point received_at;
     std::uint64_t missing = 0;
+    std::uint64_t received = 0;
 };
 
 struct BoardState {

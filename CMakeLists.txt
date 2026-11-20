@@ -41,6 +41,11 @@ if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(NAME protocol_provenance
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci/check_protocol.py")
+    add_executable(telemetry_capture_test tests/telemetry_capture.cpp)
+    target_link_libraries(telemetry_capture_test PRIVATE panthera_telemetry)
+    add_test(NAME sim_telemetry
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/sim_telemetry.py" $<TARGET_FILE:telemetry_capture_test>)
+    set_tests_properties(sim_telemetry PROPERTIES TIMEOUT 15)
     add_executable(telemetry_loopback_test tests/telemetry_loopback.cpp)
     target_include_directories(telemetry_loopback_test SYSTEM PRIVATE "${WIRELINK_ASIO_INCLUDE_DIR}")
     target_link_libraries(telemetry_loopback_test PRIVATE panthera_telemetry)

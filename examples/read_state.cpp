@@ -1,12 +1,23 @@
 #include "panthera/telemetry.hpp"
 
 #include <iostream>
+#include <string_view>
 #include <thread>
 
-int main() try {
+int main(int argc, char** argv) try {
     using namespace std::chrono_literals;
-    panthera::BoardTelemetry left(panthera::RealtimeAddress::left());
-    panthera::BoardTelemetry right(panthera::RealtimeAddress::right());
+    auto laddr = panthera::RealtimeAddress::left();
+    auto raddr = panthera::RealtimeAddress::right();
+    if (argc == 2 && std::string_view(argv[1]) == "--loopback") {
+        laddr.local_ip = laddr.board_ip = raddr.local_ip = raddr.board_ip = "127.0.0.1";
+        laddr.board_port = 15005;
+        raddr.board_port = 15015;
+    } else if (argc != 1) {
+        std::cerr << "Usage: panthera-read-state [--loopback]\n";
+        return 2;
+    }
+    panthera::BoardTelemetry left(laddr);
+    panthera::BoardTelemetry right(raddr);
     const auto deadline = panthera::HostClock::now() + 8s;
     do {
         const auto& l = left.poll();
