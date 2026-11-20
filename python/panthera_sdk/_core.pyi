@@ -348,7 +348,7 @@ class DiagnosticsSample:
     def udp_tx_drop(self) -> int:
         ...
 class BoardState:
-    def active_hand_angles(self, max_age_us: typing.SupportsInt | typing.SupportsIndex = 30000) -> typing.Any:
+    def active_hand_angles(self, max_age_us: typing.SupportsInt | typing.SupportsIndex = 30000) -> numpy.typing.NDArray[numpy.float32] | None:
         ...
     def fresh_arm_feedback(self) -> bool:
         ...
@@ -383,9 +383,9 @@ class BoardTelemetry:
 class Side:
     """
     Members:
-    
+
       left
-    
+
       right
     """
     __members__: typing.ClassVar[dict[str, Side]]
@@ -428,7 +428,7 @@ class Side:
 class ExpertAck:
     """
     Members:
-    
+
       IUnderstandNoSafety
     """
     IUnderstandNoSafety: typing.ClassVar[ExpertAck]
@@ -471,34 +471,34 @@ class MotionBounds:
     def __init__(self) -> None:
         ...
     @property
-    def lower(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12, 1]"]:
+    def lower(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12]"]:
         ...
     @lower.setter
-    def lower(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12, 1]"]) -> None:
+    def lower(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12]"]) -> None:
         ...
     @property
-    def max_acceleration(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12, 1]"]:
+    def max_acceleration(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12]"]:
         ...
     @max_acceleration.setter
-    def max_acceleration(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12, 1]"]) -> None:
+    def max_acceleration(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12]"]) -> None:
         ...
     @property
-    def max_lead(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12, 1]"]:
+    def max_lead(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12]"]:
         ...
     @max_lead.setter
-    def max_lead(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12, 1]"]) -> None:
+    def max_lead(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12]"]) -> None:
         ...
     @property
-    def max_speed(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12, 1]"]:
+    def max_speed(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12]"]:
         ...
     @max_speed.setter
-    def max_speed(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12, 1]"]) -> None:
+    def max_speed(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12]"]) -> None:
         ...
     @property
-    def upper(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12, 1]"]:
+    def upper(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12]"]:
         ...
     @upper.setter
-    def upper(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12, 1]"]) -> None:
+    def upper(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[12]"]) -> None:
         ...
 class ControlConfig:
     joints: MotionBounds
@@ -541,10 +541,10 @@ class ControlConfig:
     def smoothing(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
         ...
     @property
-    def task_weights(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[6, 1]"]:
+    def task_weights(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[6]"]:
         ...
     @task_weights.setter
-    def task_weights(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[6, 1]"]) -> None:
+    def task_weights(self, arg0: typing.Annotated[numpy.typing.ArrayLike, numpy.float64, "[6]"]) -> None:
         ...
     @property
     def translation_speed(self) -> float:
@@ -557,7 +557,7 @@ class ArmGeometry:
     def frames(self) -> typing.Annotated[list[typing.Annotated[numpy.typing.NDArray[numpy.float64], "[4, 4]"]], "FixedSize(9)"]:
         ...
     @property
-    def gravity(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[6, 1]"]:
+    def gravity(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[6]"]:
         ...
     @property
     def jacobian(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[6, 6]"]:
@@ -623,7 +623,7 @@ class ControlState:
     def hard_margin(self) -> float:
         ...
     @property
-    def measured(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12, 1]"]:
+    def measured(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12]"]:
         ...
     @property
     def missed_cycles(self) -> int:
@@ -632,7 +632,7 @@ class ControlState:
     def qp_time(self) -> float:
         ...
     @property
-    def reference(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12, 1]"]:
+    def reference(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12]"]:
         ...
     @property
     def rpc(self) -> typing.Annotated[list[RpcTiming], "FixedSize(2)"]:
@@ -641,7 +641,7 @@ class ControlState:
     def tcp(self) -> typing.Annotated[list[typing.Annotated[numpy.typing.NDArray[numpy.float64], "[4, 4]"]], "FixedSize(2)"]:
         ...
     @property
-    def velocity(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12, 1]"]:
+    def velocity(self) -> typing.Annotated[numpy.typing.NDArray[numpy.float64], "[12]"]:
         ...
 class DualArm:
     def __enter__(self) -> DualArm:
