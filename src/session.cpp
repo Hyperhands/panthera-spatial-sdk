@@ -1,4 +1,5 @@
 #include "panthera/session.hpp"
+#include "session_timer.hpp"
 #include "value_init.h"
 #include <algorithm>
 #include <asio/ip/udp.hpp>
@@ -288,6 +289,7 @@ struct DualSession::Impl {
     SessionPeer left, right;
     std::array<SessionPeer*, 2> peers{&left, &right};
     Gravity gravity;
+    detail::SessionTimer timer;
     bool active{};
     Time last_hold{};
     std::array<bool, 2> claiming{}, releasing{};
@@ -309,10 +311,10 @@ struct DualSession::Impl {
                     throw std::runtime_error("Board restarted: node " +
                                              std::to_string(p->address.realtime.board_node));
     }
-    static void wait(Time deadline) {
+    void wait(Time deadline) {
         if (HostClock::now() >= deadline)
             throw std::runtime_error("Dual-board takeover timed out");
-        std::this_thread::sleep_for(1ms);
+        timer.until(std::min(deadline, HostClock::now() + 1ms));
     }
     void feedback(Time deadline, bool after_config = false) {
         const auto after = HostClock::now();
@@ -465,7 +467,7 @@ struct DualSession::Impl {
                     }
                 }
             if (pending[0] || pending[1])
-                std::this_thread::sleep_for(1ms);
+                timer.until(std::min(deadline, HostClock::now() + 1ms));
         }
         // Keep unresolved RPCs and their operation IDs for an explicit stop retry.
         return confirmed && !pending[0] && !pending[1];

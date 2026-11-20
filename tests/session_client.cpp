@@ -1,4 +1,5 @@
 #include "panthera/session.hpp"
+#include "session_timer.hpp"
 #include <cmath>
 #include <iostream>
 #include <thread>
@@ -19,6 +20,7 @@ int main(int argc, char** argv) try {
     if (argc != 6)
         return 2;
     std::string scenario = argv[5];
+    detail::SessionTimer timer;
     DualSession session(loopback(argv + 1, 11), loopback(argv + 3, 12),
                         [](Side s, const Joints& model) {
                             require(std::abs(model[1] - 1.5f) < .001f, "Wrong J2 encoder branch");
@@ -48,7 +50,7 @@ int main(int argc, char** argv) try {
     Joints fingers{.1f, .2f, .3f, .4f, .5f, .6f};
     while (!session.send_hand(Side::left, fingers, 80)) {
         session.hold();
-        std::this_thread::sleep_for(1ms);
+        timer.until(HostClock::now() + 1ms);
     }
     bool frozen = false, stopped = false, read_hand = false;
     const auto started = HostClock::now();
@@ -83,7 +85,7 @@ int main(int argc, char** argv) try {
             next_tick += skipped * 2ms;
             missed += static_cast<unsigned>(skipped);
         }
-        std::this_thread::sleep_until(next_tick);
+        timer.until(next_tick);
     }
     if (scenario == "success") {
         const auto elapsed = std::chrono::duration<double>(HostClock::now() - started).count();

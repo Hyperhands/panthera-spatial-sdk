@@ -47,6 +47,10 @@ if(BUILD_TESTING)
     add_test(NAME protocol_provenance
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci/check_protocol.py")
     add_executable(session_client_test tests/session_client.cpp)
+    target_include_directories(session_client_test PRIVATE src)
+    if(WIN32)
+        target_compile_definitions(session_client_test PRIVATE _WIN32_WINNT=0x0601 WIN32_LEAN_AND_MEAN NOMINMAX)
+    endif()
     target_link_libraries(session_client_test PRIVATE panthera_telemetry)
     add_test(NAME sim_session
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/sim_session.py" $<TARGET_FILE:session_client_test>)
