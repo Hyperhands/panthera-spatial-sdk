@@ -1,0 +1,15 @@
+[submodule "third_party/wirelink"]
+	path = third_party/wirelink
+	url = https://github.com/starwey604/wirelink.git
+[submodule "third_party/wlc"]
+	path = third_party/wlc
+	url = https://github.com/starwey604/wlc.git
+[submodule "third_party/eigen"]
+	path = third_party/eigen
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "third_party/pybind11"]
+	path = third_party/pybind11
+	url = https://github.com/pybind/pybind11.git
+[submodule "third_party/acados"]
+	path = third_party/acados
+	url = https://github.com/acados/acados.git

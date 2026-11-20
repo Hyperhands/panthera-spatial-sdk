@@ -1,0 +1,35 @@
+name: Host SDK
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  host:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-15, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: UCRT64
+          install: >-
+            git mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-python
+      - name: Build and test on Windows x64 (MinGW-w64)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: cmake --workflow --preset host
+      - name: Build and test on Linux or macOS
+        if: runner.os != 'Windows'
+        run: cmake --workflow --preset host
+      - name: Reproduce firmware protocol from schema
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          cargo run --locked --manifest-path third_party/wlc/Cargo.toml --target-dir build/wlc -- compile protocol/robot_messages.wl --profile protocol/board_rt.bind.wl --out-dir build/wlc-protocol
+          diff -ru --exclude=value_init.h generated/protocol build/wlc-protocol
