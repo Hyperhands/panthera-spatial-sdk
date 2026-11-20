@@ -54,6 +54,20 @@ python examples/wp_h_accept.py stage2-takeover --smoke
 
 `with DualArm(...) as robot` 在退出时软停，进入后显式调用 `robot.enable()`。接管期间按 Ctrl+C 会回滚已取得的租约。`BoardTelemetry.poll()` 返回独立快照，`received_at` 为主机单调时钟秒数，`qp_time` 单位为秒。用 `collision_state(state.measured).inter_arm` 读取模型的最小臂间距离（米）。
 
+## MuJoCo 双臂示例
+
+在仓库根目录运行：
+
+```bash
+python -m pip install '.[mujoco]'
+python examples/mujoco_mocap_qp.py
+python examples/mujoco_mocap_qp.py --headless
+```
+
+窗口默认从 `ready` 开始。双击蓝色或橙色目标球选中它，按住 Ctrl 并用鼠标右键拖动即可平移目标，Ctrl 加左键拖动可旋转目标。球柄的根部对应 TCP。终端显示臂间距离、最近配对间隙、硬停余量（米）和 QP 耗时。macOS 图形模式用 `mjpython` 启动。加 `--start-zero` 可从折叠零位开始。[MuJoCo 鼠标操作](https://mujoco.readthedocs.io/en/stable/programming/samples.html#simulate)
+
+`--headless` 对多组静止姿态核对重力矩，并经同一套 UDP 接管和 MIT 指令验证跟踪与对向自停。显示与控制使用名义 URDF 惯量，仿真只运行一个双臂物理场景，控制器继续使用 SDK 的碰撞距离。场景用 `python tools/sim/build_mujoco_scene.py` 重新生成。请通过示例或 `sim/mujoco_board.py` 的 `load_scene()` 加载 XML；原始 `link2.STL` 的 370292 个三角面超出原生 STL 解码器的 200000 面上限，加载器在内存中将原三角面转换为 MSH。
+
 ## 读取两板状态
 
 主机网卡配置为 `192.168.10.1` 后，运行 `build/host/panthera-read-state`（Windows 加 `.exe`）。示例绑定 UDP 5005、5015，收到两板新鲜的六轴反馈后输出原始编码器角度（rad）并退出。该入口只订阅遥测，不申请控制租约。板端启动回零由固件配置决定。
