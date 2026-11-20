@@ -46,6 +46,7 @@ if(WIN32)
 endif()
 option(PANTHERA_BUILD_PYTHON "Build the Python SDK extension" OFF)
 if(PANTHERA_BUILD_PYTHON)
+    find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
     pybind11_add_module(_core MODULE NO_EXTRAS python/panthera_sdk/_core.cpp
         python/panthera_sdk/telemetry.cpp)
     target_link_libraries(_core PRIVATE panthera_controller)

@@ -6,6 +6,7 @@ import csv
 from datetime import datetime
 import json
 from pathlib import Path
+import xml.etree.ElementTree as ET
 import sys
 import time
 
@@ -45,6 +46,21 @@ class Record:
             stage=stage,
             run_mode="real" if real else "smoke_loopback",
             human_checks="pending_human_confirmation",
+        )
+        manual = {
+            STAGES[0]: ["boot_homing", "encoder_branches_after_power_cycle"],
+            STAGES[1]: ["soft_hold_posture", "disconnected_board_stop"],
+            STAGES[2]: [
+                "joint_directions",
+                "wrist_clearance",
+                "adapter_dimensions_mass",
+            ],
+            STAGES[3]: ["finger_order_sign_scale", "physical_endpoints"],
+            STAGES[4]: ["measured_inter_arm_gap"],
+            STAGES[5]: ["temperature", "link_quality_trend"],
+        }
+        self.summary["field_checks"] = dict.fromkeys(
+            manual.get(stage, []), "pending_human_confirmation"
         )
         self.stream = self.base.with_suffix(".csv").open(
             "x", newline="", encoding="utf-8"
@@ -167,7 +183,7 @@ def telemetry(addresses, pair, report, real):
                 report.row(i, b)
             last[i] = b
         time.sleep(0.0005)
-    metrics = []
+    metrics = report.summary["telemetry"] = []
     for i, b in enumerate(last):
         require(
             b and b.arm and b.diagnostics and b.hand and b.faults,
@@ -199,7 +215,6 @@ def telemetry(addresses, pair, report, real):
                 missing / (received + missing) < 0.001 and 475 <= rate <= 525,
                 "Telemetry rate/loss",
             )
-    report.summary["telemetry"] = metrics
 
 
 class Motion:
@@ -402,12 +417,46 @@ def single_joint(m):
                     m.joints([READY, READY])
 
 
-def hand_check(m):
+def hand_check(m, endpoints=False):
+    if endpoints:
+        model = ET.parse(
+            ROOT / "model/panthera_dual_description/urdf/panthera_dual_a2l1.urdf"
+        )
+        drivers = (
+            "thumb_cmc",
+            "thumb_pip",
+            "index_mcp",
+            "middle_mcp",
+            "ring_mcp",
+            "little_mcp",
+        )
+        observations = m.report.summary["observed_hand_endpoints_rad"] = {}
+
     for side in SIDES:
         for j in range(6):
             q = np.zeros(6)
             q[j] = 0.10
             m.hands(side, q)
+            if endpoints:
+                name = (
+                    ("left" if side == sdk.Side.left else "right")
+                    + "_"
+                    + drivers[j]
+                    + "_joint"
+                )
+                maximum = float(model.find(f"joint[@name='{name}']/limit").get("upper"))
+                while q[j] < maximum:
+                    reply = input(
+                        f"{name} 当前 {q[j]:.3f} rad。输入 + 前进最多 0.1 rad，输入 end 记录端点并张开："
+                    ).strip()
+                    if reply == "end":
+                        break
+                    require(reply == "+", "Operator ended hand travel check")
+                    q[j] = min(maximum, q[j] + 0.1)
+                    m.hands(side, q)
+                angles = m.sample().boards[SIDES.index(side)].active_hand_angles(100000)
+                require(angles is not None, "Stale hand endpoint feedback")
+                observations[name] = float(angles[j])
             m.hands(side, np.zeros(6))
 
 
@@ -515,7 +564,7 @@ def main(example=None):
                 elif stage == STAGES[2]:
                     single_joint(motion)
                 elif stage in (STAGES[3], "hand_passthrough"):
-                    hand_check(motion)
+                    hand_check(motion, endpoints=args.real and stage == STAGES[3])
                 elif stage in (STAGES[4], "approach_stop", "cartesian_move"):
                     motion.joints([READY, READY])
                     if stage != "approach_stop":
