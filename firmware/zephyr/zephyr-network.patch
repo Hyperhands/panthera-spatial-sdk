@@ -1,0 +1,49 @@
+diff --git a/drivers/ethernet/eth_nxp_enet_qos/Kconfig b/drivers/ethernet/eth_nxp_enet_qos/Kconfig
+index b57dabf4c90..8d05261d66e 100644
+--- a/drivers/ethernet/eth_nxp_enet_qos/Kconfig
++++ b/drivers/ethernet/eth_nxp_enet_qos/Kconfig
+@@ -14,6 +14,13 @@ menuconfig ETH_NXP_ENET_QOS
+ 
+ if ETH_NXP_ENET_QOS
+ 
++config ETH_NXP_ENET_QOS_TX_OSF
++	bool "Pipeline the second transmit frame"
++	default y
++	help
++	  Enable DMA operate-on-second-frame. Disable for small fragmented
++	  UDP packets on MCXN947 when DMA remains in waiting-for-status.
++
+ DT_PROP_NXP_ENET_QOS_UNIQUE_MAC := nxp,unique-mac
+ 
+ config ETH_NXP_ENET_QOS_UNIQUE_MAC_ADDRESS
+diff --git a/drivers/ethernet/eth_nxp_enet_qos/eth_nxp_enet_qos.c b/drivers/ethernet/eth_nxp_enet_qos/eth_nxp_enet_qos.c
+index 3c34f84f246..392df39fd87 100644
+--- a/drivers/ethernet/eth_nxp_enet_qos/eth_nxp_enet_qos.c
++++ b/drivers/ethernet/eth_nxp_enet_qos/eth_nxp_enet_qos.c
+@@ -932,7 +932,8 @@ static inline void enet_qos_dma_config_init(enet_qos_t *base)
+ 	 */
+ 	base->DMA_CH[0].DMA_CHX_TX_CTRL |=
+ 		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TX_CTRL, TxPBL, 16) |
+-		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TX_CTRL, OSF, 0b1);
++		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_TX_CTRL, OSF,
++			IS_ENABLED(CONFIG_ETH_NXP_ENET_QOS_TX_OSF));
+ 	base->DMA_CH[0].DMA_CHX_RX_CTRL |=
+ 		ENET_QOS_REG_PREP(DMA_CH_DMA_CHX_RX_CTRL, RxPBL, 0b1);
+ }
+diff --git a/subsys/net/ip/net_context.c b/subsys/net/ip/net_context.c
+index 84dbd9e4842..cf1eafbcbd7 100644
+--- a/subsys/net/ip/net_context.c
++++ b/subsys/net/ip/net_context.c
+@@ -3189,9 +3189,10 @@ static int context_sendto(struct net_context *context,
+ 		goto skip_alloc;
+ 	}
+ 
+-	pkt = context_alloc_pkt(context, family, alloc_len, PKT_WAIT_TIME);
++	pkt = context_alloc_pkt(context, family, alloc_len,
++		K_TIMEOUT_EQ(timeout, K_NO_WAIT) ? K_NO_WAIT : PKT_WAIT_TIME);
+ 	if (!pkt) {
+-		NET_ERR("Failed to allocate net_pkt");
++		NET_ERR_RATELIMIT("Failed to allocate net_pkt");
+ 		return -ENOBUFS;
+ 	}
+ 

@@ -1,0 +1,26 @@
+manifest:
+  projects:
+  - name: zephyr
+    url: https://github.com/zephyrproject-rtos/zephyr
+    revision: 545fb948fe7fbc0a8e569bd9db1e9df38a24f945
+    west-commands: scripts/west-commands.yml
+  - name: cmsis_6
+    url: https://github.com/zephyrproject-rtos/CMSIS_6
+    revision: 1c1840af7a7e757d6e2fec3ddb0e5ce0dfcc93c8
+    path: modules/hal/cmsis_6
+    groups:
+    - hal
+  - name: hal_nxp
+    url: https://github.com/zephyrproject-rtos/hal_nxp
+    revision: 33f80151043a41ea7f10e8da8e31b19b0e480b3a
+    path: modules/hal/nxp
+    groups:
+    - hal
+  - name: segger
+    url: https://github.com/zephyrproject-rtos/segger
+    revision: 50892fdbcf2f570e67baa72b8894a66b16946f72
+    path: modules/debug/segger
+    groups:
+    - debug
+  self:
+    path: manifest

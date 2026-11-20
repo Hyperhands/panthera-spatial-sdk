@@ -1,0 +1,120 @@
+mainmenu "Panthera arm and hand gateway"
+source "Kconfig.zephyr"
+
+menu "Robot network identity"
+config ROBOT_NODE_ID
+    int "Board node ID"
+    range 1 65535
+    default 11
+config ROBOT_HOST_NODE_ID
+    int "Host node ID"
+    range 1 65535
+    default 10
+config ROBOT_RT_PORT
+    int "Host/board realtime UDP port"
+    range 1 65535
+    default 5005
+config ROBOT_MGMT_PORT
+    int "Host/board management UDP port"
+    range 1 65535
+    default 5006
+endmenu
+
+menu "Dual board arm and hand"
+config ROBOT_LOCAL_ACTUATORS
+    bool "Enable the locally connected CAN actuators"
+    default y
+config ROBOT_HAND_ONLY
+    bool "Hand-only gateway; block every non-hand CAN transmission"
+    depends on ROBOT_LOCAL_ACTUATORS
+    default n
+config ROBOT_PEER_LINK
+    bool "500 Hz independent arm and hand state exchange"
+    default n
+config ROBOT_PEER_NODE_ID
+    int "Other board node ID"
+    range 1 65535
+    default 12
+config ROBOT_PEER_IPV4_ADDR
+    string "Other board IPv4 address"
+    default "192.168.10.12"
+config ROBOT_PEER_PORT
+    int "Board-to-board state UDP port"
+    range 1 65535
+    default 5020
+endmenu
+
+config ROBOT_LOCAL_HOME
+    bool "Local SW2 homing with selected mounted-hand model"
+    depends on ROBOT_LOCAL_ACTUATORS && !ROBOT_HAND_ONLY
+    default n
+config ROBOT_BOOT_HOME
+    bool "Automatically home once after MCU boot when six drives are ready"
+    depends on ROBOT_LOCAL_HOME
+    default n
+
+config ROBOT_BOOT_HAND_FIRST
+    bool "Establish hand feedback before boot motor queries and automatic homing"
+    depends on ROBOT_BOOT_HOME
+    default n
+    help
+      On ordinary MCU boot, wait one second with no normal actuator traffic,
+      then query hand angles at 5 Hz until at least three fresh replies span
+      400 ms. Only then start motor feedback polling and automatic homing.
+      Never re-enter this gate during running homing, hold, or teleoperation.
+      Maintenance STOP and fault STOP are not suppressed by this option.
+
+config ROBOT_GELLO_UART
+    bool "Read GELLO IDs1-7 on J5 UART5 and expose read-only UDP5021"
+    depends on SERIAL && NETWORKING
+    select UART_INTERRUPT_DRIVEN
+    select UART_USE_RUNTIME_CONFIGURE
+    default n
+
+config ROBOT_GELLO_USB
+    bool "Read GELLO via J11 USB host CDC ACM and expose read-only UDP5021"
+    depends on NETWORKING
+    select USB_HOST_STACK
+    default n
+
+config ROBOT_GELLO_DUAL
+    bool "Read two GELLO groups (IDs 1-7 and 11-17) on the same bus"
+    depends on ROBOT_GELLO_USB || ROBOT_GELLO_UART
+    default n
+
+config ROBOT_GELLO_RADIO
+    bool "Timestamped dual GELLO snapshots via ESP-NOW gateway"
+    depends on NETWORKING && ROBOT_PEER_LINK
+    default n
+
+config ROBOT_GELLO_RADIO_GATEWAY
+    bool "This NXP connects directly to the ESP32 receiver"
+    depends on ROBOT_GELLO_RADIO
+    default n
+
+config ROBOT_GELLO_RADIO_USB
+    bool "Use J11 USB host CDC for the ESP32 receiver instead of J1 UART2"
+    depends on ROBOT_GELLO_RADIO_GATEWAY
+    select USB_HOST_STACK
+    default n
+
+config ROBOT_GELLO_RADIO_HZ
+    int "GELLO snapshot query frequency (not servo scan rate)"
+    depends on ROBOT_GELLO_RADIO
+    range 50 250
+    default 200
+
+config ROBOT_GELLO_STANDALONE
+    bool "Standalone dual GELLO mapping and RGB status"
+    depends on ROBOT_GELLO_RADIO && GPIO
+    default n
+
+config ROBOT_GELLO_STANDALONE_ACTUATE
+    bool "Automatically take over after homing and fresh aligned inputs"
+    depends on ROBOT_GELLO_STANDALONE && ROBOT_LOCAL_HOME
+    default n
+
+config ROBOT_GELLO_WEB
+    bool "Low-rate ESP32 web management over USB and peer Ethernet"
+    depends on ROBOT_GELLO_STANDALONE && ROBOT_GELLO_RADIO
+    default n
