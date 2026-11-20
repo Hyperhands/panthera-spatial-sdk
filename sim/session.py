@@ -156,6 +156,10 @@ class SessionBoard(TelemetryBoard):
                     data, peer = sock.recvfrom(2048)
                 except BlockingIOError:
                     break
+                except (ConnectionResetError, ConnectionRefusedError):
+                    # UDP can report a previous send to a closed host port on receive.
+                    # Continue servicing the board watchdog after host exit.
+                    continue
                 if peer != ("127.0.0.1", port):
                     continue
                 try:
