@@ -99,9 +99,20 @@ int main() try {
     hand_state_value_t hand{};
     init_hand_state(&hand);
     hand.header = header(11, 123, 9);
-    hand.joint_q_rad[9] = 0.75f;
+    hand.online = true;
+    hand.valid_fields = 2;
+    hand.field_age_us[1] = 4000;
+    for (int i = 0; i < 11; ++i)
+        hand.joint_q_rad[i] = static_cast<float>(i);
     left.send(HAND_STATE_MESSAGE_ID, hand, hand_state_value_encode);
-    wait_for(l, [](const auto& s) { return s.hand && s.hand->value.joint_q_rad[9] == 0.75f; });
+    wait_for(l, [](const auto& s) { return s.hand.has_value(); });
+    auto hand_state = l.poll();
+    const auto at = hand_state.hand->received_at;
+    const auto active = hand_state.active_hand_angles(at + 5ms, 10ms);
+    require(active && *active == std::array<float, 6>{0, 1, 3, 5, 7, 9}, "active finger mapping");
+    require(!hand_state.active_hand_angles(at + 6ms, 10ms), "hand feedback age");
+    hand_state.hand->value.valid_fields = 1;
+    require(!hand_state.active_hand_angles(at, 10ms), "missing angle field");
     left.send_arm(arm(11, 123, 1)); // Sequence zero was missed across wrap.
     wait_for(l, [](const auto& s) { return s.arm->value.header.sequence == 1; });
     require(l.poll().arm->missing == 1, "wraparound gap count");

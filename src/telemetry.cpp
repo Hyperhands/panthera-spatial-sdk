@@ -61,6 +61,27 @@ bool BoardState::fresh_arm_feedback(HostClock::time_point now) const {
     return now - arm->received_at + board_age < std::chrono::milliseconds(20);
 }
 
+std::optional<std::array<float, 6>>
+BoardState::active_hand_angles(HostClock::time_point now, std::chrono::microseconds max_age) const {
+    if (!hand || now < hand->received_at || !hand->value.online ||
+        !(hand->value.valid_fields & 2U)) {
+        return std::nullopt;
+    }
+    const auto board_age = std::chrono::microseconds(hand->value.field_age_us[1]);
+    if (now - hand->received_at + board_age >= max_age) {
+        return std::nullopt;
+    }
+    // Handle-L1 angle feedback interleaves passive and active joints.
+    constexpr std::array<unsigned, 6> active = {0, 1, 3, 5, 7, 9};
+    std::array<float, 6> result{};
+    for (std::size_t i = 0; i < active.size(); ++i) {
+        result[i] = hand->value.joint_q_rad[active[i]];
+        if (!std::isfinite(result[i]))
+            return std::nullopt;
+    }
+    return result;
+}
+
 struct BoardTelemetry::Impl {
     RealtimeAddress address;
     wl_ctx_t link{};

@@ -2,6 +2,7 @@
 
 #include "robot_messages_values.h"
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <memory>
@@ -40,6 +41,9 @@ struct BoardState {
     std::optional<TelemetrySample<diagnostics_value_t>> diagnostics;
 
     bool fresh_arm_feedback(HostClock::time_point now) const;
+    // Firmware radians in HandCommand order, with a caller-selected angle feedback age limit.
+    std::optional<std::array<float, 6>> active_hand_angles(HostClock::time_point now,
+                                                           std::chrono::microseconds max_age) const;
 };
 
 // Single-owner, nonblocking receiver. poll() updates the snapshot in place.

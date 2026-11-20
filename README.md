@@ -40,7 +40,7 @@ ctest --test-dir build/host --output-on-failure
 
 本机联调时，在一个终端运行 `python3 sim/telemetry.py`，另一个终端运行 `build/host/panthera-read-state --loopback`。模拟器以 2 ms 目标周期发布两臂的静止零位，另外发布手、故障和诊断遥测。
 
-C++ 接口见 [telemetry.hpp](include/panthera/telemetry.hpp)。每个接收器由一个线程调用 `poll()`；快照包含臂、手、故障和诊断各自的最近一帧及序号缺口计数。手角度保留固件的 11 项顺序。重启事件由 `restarts` 与新的 `boot_id` 标识。
+C++ 接口见 [telemetry.hpp](include/panthera/telemetry.hpp)。每个接收器由一个线程调用 `poll()`；快照包含臂、手、故障和诊断各自的最近一帧及序号缺口计数。`active_hand_angles(now, max_age)` 按手指令的六个主动关节顺序返回固件弧度值，数据过期、离线或无效时返回空值。原始 11 项反馈仍可从手部样本读取。重启事件由 `restarts` 与新的 `boot_id` 标识。
 
 ## 模型
 

@@ -29,6 +29,11 @@ int main(int argc, char** argv) try {
                           << state->boot_id << " q_rad";
                 for (const auto q : state->arm->value.q_rad)
                     std::cout << ' ' << q;
+                if (const auto hand = state->active_hand_angles(now, 100ms)) {
+                    std::cout << " hand_q_rad";
+                    for (const auto angle : *hand)
+                        std::cout << ' ' << angle;
+                }
                 std::cout << '\n';
             }
             return 0;
