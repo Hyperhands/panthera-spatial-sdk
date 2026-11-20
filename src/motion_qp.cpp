@@ -34,7 +34,6 @@ struct MotionQp::Impl {
         dimension(0, "nbu", 12);
         dimension(0, "ng", slots);
         dimension(1, "nx", 12);
-        dimension(1, "nbx", 12);
         in = ocp_qp_in_create_from_xcond_dims(dims);
         out = ocp_qp_out_create_from_xcond_dims(dims);
         opts =
@@ -47,7 +46,8 @@ struct MotionQp::Impl {
         std::iota(indices.begin(), indices.end(), 0);
         set(0, "B", integrator.data());
         set(0, "idxbu", indices.data());
-        set(1, "idxbx", indices.data());
+        std::array<double, slots> zeros{};
+        set(0, "ug_mask", zeros.data());
     }
     ~Impl() {
         ocp_qp_solver_destroy(solver);
@@ -82,19 +82,17 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
         !vlo.allFinite() || !vhi.allFinite() || (lo.array() > hi.array()).any() ||
         (vlo.array() > vhi.array()).any())
         return result;
-    // Intersect the analytically equivalent velocity interval before sending
-    // an infeasible initial point to the interior-point solver.
-    if ((vlo.cwiseMax((lo - reference) / control_dt).array() >
-         vhi.cwiseMin((hi - reference) / control_dt).array() + 1e-12)
-            .any())
+    // x1 = reference + dt*u. Translate its bounds into equivalent velocity
+    // bounds before condensing, eliminating twelve redundant HPIPM rows.
+    vlo = vlo.cwiseMax((lo - reference) / control_dt);
+    vhi = vhi.cwiseMin((hi - reference) / control_dt);
+    if ((vlo.array() > vhi.array()).any())
         return result;
     qp.set(0, "R", hessian.data());
     qp.set(0, "r", linear.data());
     qp.set(0, "b", reference.data());
     qp.set(0, "lbu", vlo.data());
     qp.set(0, "ubu", vhi.data());
-    qp.set(1, "lbx", lo.data());
-    qp.set(1, "ubx", hi.data());
     auto& order = qp.order;
     order.resize(rows.size());
     std::iota(order.begin(), order.end(), 0);
@@ -103,10 +101,13 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
         if (!r.gradient.allFinite() || !std::isfinite(r.lower) ||
             !std::isfinite(r.clearance_margin))
             return result;
-    // Rigidly related shapes can have an identically zero distance derivative.
-    // Such a satisfied row provides no bound and has no strict interior for HPIPM.
+    // A row satisfied throughout the velocity box needs no solver slot. This
+    // also handles rigid pairs with an identically zero distance derivative.
     std::erase_if(order, [&](auto i) {
-        return rows[i].gradient.cwiseAbs().maxCoeff() < 1e-12 && rows[i].lower <= 0.;
+        const auto& row = rows[i];
+        double worst =
+            row.gradient.cwiseProduct(vlo).cwiseMin(row.gradient.cwiseProduct(vhi)).sum();
+        return worst >= row.lower - 1e-12;
     });
     const size_t used = std::min<size_t>(slots, order.size());
     std::partial_sort(order.begin(), order.begin() + used, order.end(), [&](auto a, auto b) {
@@ -122,6 +123,9 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
             d.row(i) = r.gradient.transpose() / scale;
             lb[i] = r.lower / scale;
         }
+        std::array<double, slots> mask{};
+        std::fill_n(mask.begin(), used, 1.);
+        qp.set(0, "lg_mask", mask.data());
         qp.set(0, "D", d.data());
         qp.set(0, "lg", lb.data());
         qp.set(0, "ug", ub.data());
@@ -142,8 +146,8 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
             (u.array() > vhi.array() + tolerance).any())
             return result;
         auto slack = [&](size_t i) { return rows[i].gradient.dot(u) - rows[i].lower; };
-        if (std::all_of(order.begin(), order.end(),
-                        [&](auto i) { return slack(i) >= -tolerance; })) {
+        if (std::all_of(rows.begin(), rows.end(),
+                        [&](const auto& r) { return r.gradient.dot(u) >= r.lower - tolerance; })) {
             result.position = x;
             result.velocity = u;
             result.success = true;
