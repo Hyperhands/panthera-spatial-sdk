@@ -78,17 +78,25 @@
         0.2395491374382439,
         0.1693891374376919
       ],
-      "palm_origin_along_tool_axis_from_flange_m": 0.009499999999999995,
-      "palm_normal_world_zero_pose": [
+      "palm_offset_from_flange_m": 0.009499999999999986,
+      "finger_axis_world_zero_pose": [
+        0.707106781187,
         0.0,
-        -0.707106781187,
+        0.707106781187
+      ],
+      "finger_axis_elevation_deg_zero_pose": 45.000000000000014,
+      "hand_tilt_from_tool_axis_deg": 45.00000000000001,
+      "hand_pitch_about_flange_y_deg": 45.00000000000001,
+      "finger_axis_lateral_component": 0.0,
+      "palm_normal_world_zero_pose": [
+        0.707106781187,
+        0.0,
         -0.707106781187
       ],
-      "hand_roll_about_tool_axis_deg": -45.00000000000001,
       "tcp_xyz_world_zero_pose": [
-        0.1976485117134797,
+        0.1655767042534066,
         0.2395491374382439,
-        0.16938913743769193
+        0.24681732997761888
       ],
       "index_curl_moves_tip_towards_palm_plus_x": true
     },
@@ -105,17 +113,25 @@
         -0.24045086256175607,
         0.1693891374376919
       ],
-      "palm_origin_along_tool_axis_from_flange_m": 0.009499999999999995,
-      "palm_normal_world_zero_pose": [
-        0.0,
+      "palm_offset_from_flange_m": 0.009499999999999986,
+      "finger_axis_world_zero_pose": [
         0.707106781187,
+        0.0,
+        0.707106781187
+      ],
+      "finger_axis_elevation_deg_zero_pose": 45.000000000000014,
+      "hand_tilt_from_tool_axis_deg": 45.00000000000001,
+      "hand_pitch_about_flange_y_deg": 45.00000000000001,
+      "finger_axis_lateral_component": 0.0,
+      "palm_normal_world_zero_pose": [
+        0.707106781187,
+        0.0,
         -0.707106781187
       ],
-      "hand_roll_about_tool_axis_deg": 45.00000000000001,
       "tcp_xyz_world_zero_pose": [
-        0.1976485117134797,
+        0.1655767042534066,
         -0.24045086256175607,
-        0.16938913743769193
+        0.24681732997761888
       ],
       "index_curl_moves_tip_towards_palm_plus_x": true
     },
@@ -128,14 +144,14 @@
     "total_mass_kg": 7.6062942
   },
   "single_vs_dual_max_abs_error": {
-    "left": 2.220446049250313e-16,
+    "left": 1.6653345369377348e-16,
     "right": 2.7755575615628914e-16
   },
   "collision": {
     "geometry_objects": 48,
     "all_pairs": 1128,
     "samples": 6000,
-    "sampling_seconds": 5.92,
+    "sampling_seconds": 5.88,
     "disabled_by_reason": {
       "Adjacent": 70,
       "HandInternal": 230,
@@ -148,24 +164,44 @@
     "ready_pose_contacts_enabled": [],
     "sampled_contact_rate_enabled_top": [
       [
+        "left_link4",
+        "left_palm_base_link",
+        0.129
+      ],
+      [
+        "right_link4",
+        "right_palm_base_link",
+        0.11433333333333333
+      ],
+      [
         "right_link1",
         "right_palm_base_link",
-        0.030666666666666665
+        0.0305
       ],
       [
         "left_link1",
         "left_palm_base_link",
-        0.027833333333333335
-      ],
-      [
-        "right_base_link",
-        "right_palm_base_link",
-        0.027833333333333335
+        0.028833333333333332
       ],
       [
         "left_base_link",
         "left_palm_base_link",
-        0.025833333333333333
+        0.028666666666666667
+      ],
+      [
+        "right_base_link",
+        "right_palm_base_link",
+        0.028333333333333332
+      ],
+      [
+        "right_link2",
+        "right_palm_base_link",
+        0.028166666666666666
+      ],
+      [
+        "left_link2",
+        "left_palm_base_link",
+        0.0255
       ],
       [
         "right_link2",
@@ -176,11 +212,6 @@
         "left_link2",
         "left_link5",
         0.0245
-      ],
-      [
-        "right_link2",
-        "right_palm_base_link",
-        0.023166666666666665
       ],
       [
         "right_base_link",
@@ -198,9 +229,9 @@
         0.021666666666666667
       ],
       [
-        "left_link2",
+        "left_link3",
         "left_palm_base_link",
-        0.020666666666666667
+        0.02033333333333333
       ],
       [
         "right_link2",
@@ -208,18 +239,8 @@
         0.02033333333333333
       ],
       [
-        "left_link4",
-        "left_palm_base_link",
-        0.018833333333333334
-      ],
-      [
         "right_base_link",
         "right_link4",
-        0.018666666666666668
-      ],
-      [
-        "right_link4",
-        "right_palm_base_link",
         0.018666666666666668
       ],
       [
@@ -233,14 +254,14 @@
         0.017
       ],
       [
+        "right_link3",
+        "right_palm_base_link",
+        0.017
+      ],
+      [
         "right_link1",
         "right_link5",
         0.015333333333333332
-      ],
-      [
-        "right_base_link",
-        "right_thumb_pip_link",
-        0.013833333333333333
       ],
       [
         "left_link3",
@@ -258,11 +279,6 @@
         0.011833333333333333
       ],
       [
-        "right_base_link",
-        "right_thumb_cmc_link",
-        0.011833333333333333
-      ],
-      [
         "right_link1",
         "right_link6",
         0.011833333333333333
@@ -276,17 +292,17 @@
   },
   "cross_arm_min_distance": {
     "zero": {
-      "min_distance_m": 0.28590973541095677,
+      "min_distance_m": 0.24661760259484058,
       "pair": [
-        "left_thumb_dip_link",
-        "right_thumb_dip_link"
+        "left_thumb_tip_frame",
+        "right_thumb_tip_frame"
       ]
     },
     "ready": {
-      "min_distance_m": 0.28590973541095677,
+      "min_distance_m": 0.2466176025948406,
       "pair": [
-        "left_thumb_dip_link",
-        "right_thumb_dip_link"
+        "left_thumb_tip_frame",
+        "right_thumb_tip_frame"
       ]
     }
   },

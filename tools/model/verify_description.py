@@ -155,18 +155,25 @@ def structural_checks(model, data, tree):
         palm = frame_pose(model, data, palm_name)
         tool_axis = fl.rotation[:, 2]
         joint6_axis = l6.rotation[:, 0]
-        # Palm normal is +x of palm_base_link: fingers flex about +y towards +x.
+        # Finger axis is +z of palm_base_link; palm normal is +x (fingers flex
+        # about +y towards +x).
+        finger_axis = palm.rotation[:, 2]
         palm_normal = palm.rotation[:, 0]
-        ref = fl.rotation[:, 0]
-        roll = math.degrees(math.atan2(np.dot(np.cross(ref, palm_normal), tool_axis), np.dot(ref, palm_normal)))
+        tilt = math.degrees(math.acos(np.clip(np.dot(finger_axis, tool_axis), -1, 1)))
+        # Signed pitch about flange y: positive towards flange -x (= up at zero pose).
+        pitch = math.degrees(math.atan2(-np.dot(finger_axis, fl.rotation[:, 0]), np.dot(finger_axis, tool_axis)))
         out[s] = dict(
             hand_root=palm_name,
             tool_axis_world_zero_pose=tool_axis.tolist(),
             tool_axis_parallel_joint6_axis=bool(np.allclose(tool_axis, joint6_axis, atol=1e-12)),
             flange_xyz_world_zero_pose=fl.translation.tolist(),
-            palm_origin_along_tool_axis_from_flange_m=float(np.dot(palm.translation - fl.translation, tool_axis)),
+            palm_offset_from_flange_m=float(np.linalg.norm(palm.translation - fl.translation)),
+            finger_axis_world_zero_pose=np.round(finger_axis, 12).tolist(),
+            finger_axis_elevation_deg_zero_pose=math.degrees(math.asin(np.clip(finger_axis[2], -1, 1))),
+            hand_tilt_from_tool_axis_deg=tilt,
+            hand_pitch_about_flange_y_deg=pitch,
+            finger_axis_lateral_component=float(np.dot(finger_axis, fl.rotation[:, 1])),
             palm_normal_world_zero_pose=np.round(palm_normal, 12).tolist(),
-            hand_roll_about_tool_axis_deg=roll,
             tcp_xyz_world_zero_pose=frame_pose(model, data, f"{s}_tcp").translation.tolist(),
         )
     # finger-curl direction sanity: index MCP +0.5 rad must move the tip towards palm +x
@@ -454,7 +461,9 @@ def main():
     s = report["structure"]
     print(f"nq={model.nq}  base spacing={s['base_spacing_m']:.4f} m  total mass={s['total_mass_kg']:.4f} kg")
     for side in SIDES:
-        print(f"{side}: roll={s[side]['hand_roll_about_tool_axis_deg']:+.2f} deg  "
+        print(f"{side}: pitch={s[side]['hand_pitch_about_flange_y_deg']:+.2f} deg  "
+              f"finger elev(zero)={s[side]['finger_axis_elevation_deg_zero_pose']:+.2f} deg  "
+              f"finger axis(zero)={np.round(s[side]['finger_axis_world_zero_pose'], 3)}  "
               f"palm normal(zero)={np.round(s[side]['palm_normal_world_zero_pose'], 3)}  "
               f"curl ok={s[side]['index_curl_moves_tip_towards_palm_plus_x']}")
     print("single vs dual:", report["single_vs_dual_max_abs_error"])

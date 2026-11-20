@@ -14,35 +14,38 @@ arms:
   base_spacing_m: 0.480
 
   left:
-    # Board mapping is informational for the SDK config; geometry does not use it.
-    # TODO(confirm): dual-nxp.json calls node11 "left", the dual-gello web UI maps
-    # its left-hand card to node12. Confirm which physical arm is on +y.
-    board_node: 11
-    base_xyz_m: [0.0, 0.240, 0.0]     # derived: +base_spacing/2 on y
+    board_node: 11          # delivery firmware: left arm = node 11
+    base_xyz_m: [0.0, 0.240, 0.0]
     base_rpy_deg: [0.0, 0.0, 0.0]
     hand: left
-    # Hand roll about the tool (flange z) axis. User: 45 deg offset.
-    # Sign chosen so that at the arm zero pose the palm faces down AND inwards
-    # (towards the other arm). TODO(confirm) against the real assembly.
-    hand_roll_deg: -45.0
+    # Hand mount orientation relative to the flange frame (see flange: below).
+    # pitch: tilt about the flange y axis (the arm's lateral axis).
+    #        POSITIVE = finger axis tilted UP (towards world +z) at the arm zero
+    #        pose. User spec: both hands 45 deg upwards.
+    # roll:  rotation of the hand about its own finger axis, applied after the
+    #        pitch. 0 = palm normal lies in the pitch plane.
+    hand_pitch_deg: 45.0
+    hand_roll_deg: 0.0
 
   right:
-    board_node: 12
+    board_node: 12          # delivery firmware: right arm = node 12
     base_xyz_m: [0.0, -0.240, 0.0]
     base_rpy_deg: [0.0, 0.0, 0.0]
     hand: right
-    hand_roll_deg: 45.0
+    hand_pitch_deg: 45.0
+    hand_roll_deg: 0.0
 
 flange:
   # link6 is a thin flange disc; its STL spans x in [0, 0.005] m in the link6
   # frame and joint6 rotates about link6 +x. The tool flange face is x = 0.005.
   offset_along_link6_x_m: 0.005
   # flange_frame convention: z = tool axis (= link6 +x), y = link6 +y,
-  # x = link6 -z. This is a fixed Ry(+90 deg) from link6.
+  # x = link6 -z (points down at the arm zero pose). Fixed Ry(+90 deg) from link6.
 
 hand_mount:
-  # Adapter / spacer thickness between Panthera flange face and the hand
-  # mount frame, along the tool axis. Unknown -> 0 (TODO: measure).
+  # Adapter between flange face and hand: exists but deliberately ignored for
+  # now (user decision 2026-11-20): thickness 0, mass not modelled. The pitch
+  # rotation is applied at the flange face centre.
   adapter_thickness_m: 0.0
   # Source A2 assembly: hand_mount_frame -> palm_base_link = (0, 0, 0.0095), rpy 0.
   palm_offset_xyz_m: [0.0, 0.0, 0.0095]

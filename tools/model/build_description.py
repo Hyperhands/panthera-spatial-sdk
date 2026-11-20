@@ -168,12 +168,18 @@ def side_chain(side: str, cfg: dict):
     elems.append(fixed_joint(f"{side}_flange_joint", f"{side}_link6", f"{side}_flange_frame",
                              [flange_x, 0, 0], matrix_to_rpy(R_flange)))
 
-    # hand_mount_frame: roll about tool axis + adapter thickness along tool axis
+    # hand_mount_frame: pitch about flange y (positive = finger axis towards
+    # flange -x, i.e. world up at the arm zero pose), then roll about the
+    # tilted finger axis; adapter thickness along the tool axis.
+    pitch = math.radians(float(arm_cfg["hand_pitch_deg"]))
     roll = math.radians(float(arm_cfg["hand_roll_deg"]))
+    R_mount = rot_y(-pitch) @ rot_z(roll)
+    if pitch > 0:
+        assert (R_mount @ [0, 0, 1])[0] < 0, "positive pitch must tilt towards flange -x (up)"
     adapter = float(cfg["hand_mount"]["adapter_thickness_m"])
     elems.append(frame_link(f"{side}_hand_mount_frame"))
     elems.append(fixed_joint(f"{side}_hand_mount_joint", f"{side}_flange_frame",
-                             f"{side}_hand_mount_frame", [0, 0, adapter], [0, 0, roll]))
+                             f"{side}_hand_mount_frame", [0, 0, adapter], matrix_to_rpy(R_mount)))
 
     hand_elems, hand_path = hand_elements(hand)
     elems.append(fixed_joint(f"{side}_hand_joint", f"{side}_hand_mount_frame",
