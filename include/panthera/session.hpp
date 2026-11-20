@@ -38,6 +38,13 @@ class DualSession {
     std::vector<fault_event_value_t> take_fault_events(Side side);
 
   private:
+    friend class DualArm;
+    using JointPair = std::array<Joints, 2>;
+    using Preflight = std::function<void(const JointPair&)>;
+    void enable_checked(std::chrono::milliseconds timeout, const Preflight& preflight);
+    using Control = std::function<void(const JointPair&, JointPair&, JointPair&)>;
+    HoldStatus control(const Control& compute);
+    void raw(Side side, const std::array<float, 30>& mit);
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

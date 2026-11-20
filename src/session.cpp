@@ -218,25 +218,30 @@ class SessionPeer {
             previous_raw[j] = raw;
         }
     }
-    void hold(const Joints& gravity) {
+    void raw(const std::array<float, 30>& mit) {
         arm_command_value_t q;
         init_arm_command(&q);
         q.header = header();
         q.control_lease = lease;
         q.policy_revision = revision;
         q.joint_mask = 63;
-        for (size_t j = 0; j < 6; ++j) {
-            if (!std::isfinite(gravity[j]))
-                throw std::runtime_error("Nonfinite gravity torque");
-            q.mit[5 * j] = reference[j] + zero[j];
-            q.mit[5 * j + 1] = 0;
-            q.mit[5 * j + 2] = kp[j];
-            q.mit[5 * j + 3] = kd[j];
-            q.mit[5 * j + 4] = gravity[j];
-        }
+        std::copy(mit.begin(), mit.end(), q.mit);
         Bytes b;
         auto n = encode(q, arm_command_value_encode, b);
         rt.send(ARM_COMMAND_MESSAGE_ID, b.data(), n);
+    }
+    void hold(const Joints& gravity, const Joints& velocity = {}) {
+        std::array<float, 30> mit;
+        for (size_t j = 0; j < 6; ++j) {
+            if (!std::isfinite(gravity[j]))
+                throw std::runtime_error("Nonfinite gravity torque");
+            mit[5 * j] = reference[j] + zero[j];
+            mit[5 * j + 1] = velocity[j];
+            mit[5 * j + 2] = kp[j];
+            mit[5 * j + 3] = kd[j];
+            mit[5 * j + 4] = gravity[j];
+        }
+        raw(mit);
     }
     void hand(const Joints& target, std::uint16_t duration) {
         hand_command_value_t q;
@@ -333,10 +338,10 @@ struct DualSession::Impl {
             wait(deadline);
         }
     }
-    void holds() {
+    void holds(const JointPair& velocity = {}) {
         auto l = gravity(Side::left, left.measured), r = gravity(Side::right, right.measured);
-        left.hold(l);
-        right.hold(r);
+        left.hold(l, velocity[0]);
+        right.hold(r, velocity[1]);
         last_hold = HostClock::now();
     }
     void stage(unsigned op, Time deadline) {
@@ -472,7 +477,7 @@ struct DualSession::Impl {
         // Keep unresolved RPCs and their operation IDs for an explicit stop retry.
         return confirmed && !pending[0] && !pending[1];
     }
-    void enable(Time deadline) {
+    void enable(Time deadline, const Preflight& preflight) {
         if (left.lease || right.lease || claiming[0] || claiming[1]) {
             refresh(false);
             if (!cleanup())
@@ -495,6 +500,8 @@ struct DualSession::Impl {
         feedback(deadline, true);
         for (auto p : peers)
             p->calibrate();
+        if (preflight)
+            preflight({left.measured, right.measured});
         holds();
         auto activation_deadline = std::min(deadline, HostClock::now() + 100ms);
         stage(3, activation_deadline);
@@ -562,13 +569,14 @@ DualSession::~DualSession() {
         }
 }
 bool DualSession::active() const { return impl_->active; }
-void DualSession::enable(std::chrono::milliseconds timeout) {
+void DualSession::enable(std::chrono::milliseconds timeout) { enable_checked(timeout, {}); }
+void DualSession::enable_checked(std::chrono::milliseconds timeout, const Preflight& preflight) {
     if (active())
         throw std::logic_error("Session already active");
     if (timeout <= 0ms)
         throw std::invalid_argument("Positive takeover timeout required");
     try {
-        impl_->enable(HostClock::now() + timeout);
+        impl_->enable(HostClock::now() + timeout, preflight);
     } catch (...) {
         impl_->rollback();
     }
@@ -583,6 +591,32 @@ HoldStatus DualSession::hold() {
     } catch (...) {
         impl_->rollback();
     }
+}
+HoldStatus DualSession::control(const Control& compute) {
+    if (!active())
+        throw std::logic_error("Inactive session");
+    try {
+        auto status = impl_->status();
+        JointPair reference{impl_->left.reference, impl_->right.reference}, velocity{};
+        if (status == HoldStatus::holding) {
+            compute({impl_->left.measured, impl_->right.measured}, reference, velocity);
+            status = impl_->status();
+            if (status == HoldStatus::holding) {
+                impl_->left.reference = reference[0];
+                impl_->right.reference = reference[1];
+            } else
+                velocity = {};
+        }
+        impl_->holds(velocity);
+        return status;
+    } catch (...) {
+        impl_->rollback();
+    }
+}
+void DualSession::raw(Side side, const std::array<float, 30>& mit) {
+    if (!active())
+        throw std::logic_error("Inactive session");
+    impl_->peer(side).raw(mit);
 }
 bool DualSession::send_hand(Side side, const Joints& target, std::uint16_t duration) {
     if (!active())
