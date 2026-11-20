@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>panthera_dual_description</name>
+  <version>0.1.0</version>
+  <description>Dual Panthera-HT arms (480 mm apart) with A2/L1 five-finger hands mounted at a 45 deg roll.</description>
+  <maintainer email="dev@example.invalid">Panthera spatial SDK</maintainer>
+  <license>MIT (Panthera-HT model, see sources/panthera_ht/LICENSE); A2/L1 hand model: see sources/a2l1_hand/README.txt</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

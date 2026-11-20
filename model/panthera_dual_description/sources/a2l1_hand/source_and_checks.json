@@ -1,0 +1,192 @@
+{
+  "source_urdf": "/home/ww/codings/casbot_calib/python/casbot_calib/assets/models/casbot_hl12p1_dvt2/source/a2/robot_description_formatted.urdf",
+  "units": {
+    "length": "m",
+    "angle": "rad",
+    "mass": "kg",
+    "inertia": "kg m^2"
+  },
+  "policy": "Source-faithful a2 extraction; only mesh paths rewritten. No L1 URDF values substituted.",
+  "hands": {
+    "left": {
+      "root_link": "left_palm_base_link",
+      "links": 17,
+      "joints": 16,
+      "revolute_joints": 11,
+      "mimic_joints": 5,
+      "mass_kg": 0.6169967100000001,
+      "source_values_preserved": true,
+      "inertias_physically_consistent": true,
+      "mimic_compatible_driver_limits_rad": {
+        "left_thumb_cmc_joint": [
+          0.0,
+          2.0944
+        ],
+        "left_thumb_pip_joint": [
+          0.0,
+          0.5236
+        ],
+        "left_index_mcp_joint": [
+          0.0,
+          1.3778947368421053
+        ],
+        "left_middle_mcp_joint": [
+          0.0,
+          1.3599999999999999
+        ],
+        "left_ring_mcp_joint": [
+          0.0,
+          1.3599999999999999
+        ],
+        "left_little_mcp_joint": [
+          0.0,
+          1.3599999999999999
+        ]
+      },
+      "source_limit_warnings": [
+        {
+          "driver": "left_index_mcp_joint",
+          "follower": "left_index_pip_joint",
+          "driver_limit_rad": [
+            0.0,
+            1.5708
+          ],
+          "mimic_compatible_driver_limit_rad": [
+            0.0,
+            1.3778947368421053
+          ]
+        },
+        {
+          "driver": "left_middle_mcp_joint",
+          "follower": "left_middle_pip_joint",
+          "driver_limit_rad": [
+            0.0,
+            1.5708
+          ],
+          "mimic_compatible_driver_limit_rad": [
+            0.0,
+            1.3599999999999999
+          ]
+        },
+        {
+          "driver": "left_ring_mcp_joint",
+          "follower": "left_ring_pip_joint",
+          "driver_limit_rad": [
+            0.0,
+            1.5708
+          ],
+          "mimic_compatible_driver_limit_rad": [
+            0.0,
+            1.3599999999999999
+          ]
+        },
+        {
+          "driver": "left_little_mcp_joint",
+          "follower": "left_little_pip_joint",
+          "driver_limit_rad": [
+            0.0,
+            1.5708
+          ],
+          "mimic_compatible_driver_limit_rad": [
+            0.0,
+            1.3599999999999999
+          ]
+        }
+      ],
+      "source_mount_joints_xml": [
+        "<joint name=\"left_hand_mount_joint\" type=\"fixed\">\n\t\t<origin rpy=\"0 0 0\" xyz=\"0 0 0\" />\n\t\t<parent link=\"left_flange_frame\" />\n\t\t<child link=\"left_hand_mount_frame\" />\n\t</joint>",
+        "<joint name=\"left_hand_joint\" type=\"fixed\">\n\t\t<origin rpy=\"0 0 0\" xyz=\"0 0 0.0095\" />\n\t\t<parent link=\"left_hand_mount_frame\" />\n\t\t<child link=\"left_palm_base_link\" />\n\t</joint>"
+      ]
+    },
+    "right": {
+      "root_link": "right_palm_base_link",
+      "links": 17,
+      "joints": 16,
+      "revolute_joints": 11,
+      "mimic_joints": 5,
+      "mass_kg": 0.6169967100000001,
+      "source_values_preserved": true,
+      "inertias_physically_consistent": true,
+      "mimic_compatible_driver_limits_rad": {
+        "right_thumb_cmc_joint": [
+          0.0,
+          2.0944
+        ],
+        "right_thumb_pip_joint": [
+          0.0,
+          0.5236
+        ],
+        "right_index_mcp_joint": [
+          0.0,
+          1.3778947368421053
+        ],
+        "right_middle_mcp_joint": [
+          0.0,
+          1.3599999999999999
+        ],
+        "right_ring_mcp_joint": [
+          0.0,
+          1.3599999999999999
+        ],
+        "right_little_mcp_joint": [
+          0.0,
+          1.3599999999999999
+        ]
+      },
+      "source_limit_warnings": [
+        {
+          "driver": "right_index_mcp_joint",
+          "follower": "right_index_pip_joint",
+          "driver_limit_rad": [
+            0.0,
+            1.5708
+          ],
+          "mimic_compatible_driver_limit_rad": [
+            0.0,
+            1.3778947368421053
+          ]
+        },
+        {
+          "driver": "right_middle_mcp_joint",
+          "follower": "right_middle_pip_joint",
+          "driver_limit_rad": [
+            0.0,
+            1.5708
+          ],
+          "mimic_compatible_driver_limit_rad": [
+            0.0,
+            1.3599999999999999
+          ]
+        },
+        {
+          "driver": "right_ring_mcp_joint",
+          "follower": "right_ring_pip_joint",
+          "driver_limit_rad": [
+            0.0,
+            1.5708
+          ],
+          "mimic_compatible_driver_limit_rad": [
+            0.0,
+            1.3599999999999999
+          ]
+        },
+        {
+          "driver": "right_little_mcp_joint",
+          "follower": "right_little_pip_joint",
+          "driver_limit_rad": [
+            0.0,
+            1.5708
+          ],
+          "mimic_compatible_driver_limit_rad": [
+            0.0,
+            1.3599999999999999
+          ]
+        }
+      ],
+      "source_mount_joints_xml": [
+        "<joint name=\"right_hand_mount_joint\" type=\"fixed\">\n\t\t<origin rpy=\"0 0 0\" xyz=\"0 0 0\" />\n\t\t<parent link=\"right_flange_frame\" />\n\t\t<child link=\"right_hand_mount_frame\" />\n\t</joint>",
+        "<joint name=\"right_hand_joint\" type=\"fixed\">\n\t\t<origin rpy=\"0 0 0\" xyz=\"0 0 0.0095\" />\n\t\t<parent link=\"right_hand_mount_frame\" />\n\t\t<child link=\"right_palm_base_link\" />\n\t</joint>"
+      ]
+    }
+  }
+}

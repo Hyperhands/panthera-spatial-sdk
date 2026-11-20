@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.STL binary
+*.stl binary
+*.glb binary
+*.png binary
+*.obj text eol=lf
+*.mtl text eol=lf

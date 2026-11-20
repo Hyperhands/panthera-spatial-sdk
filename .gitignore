@@ -1,0 +1,7 @@
+# Build outputs
+/build*/
+/out/
+__pycache__/
+*.pyc
+.cache/
+compile_commands.json

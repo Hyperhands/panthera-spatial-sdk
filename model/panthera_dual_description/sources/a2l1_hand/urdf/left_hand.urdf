@@ -1,0 +1,491 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="a2_l1_left_hand">
+  <!--Extracted from DVT2 a2. Palm-root coordinates; source joint and inertial values preserved.-->
+  <link name="left_palm_base_link">
+    <visual name="left_palm_base_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_palm_base_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_palm_base_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_palm_base_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.0013 -0.00050057 0.05223" />
+      <mass value="0.43199" />
+      <inertia ixx="0.00052055" ixy="9.71e-06" ixz="3.11e-05" iyy="0.00037083" iyz="-1.74e-05" izz="0.000235" />
+    </inertial>
+  </link>
+  <link name="left_thumb_cmc_link">
+    <visual name="left_thumb_cmc_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_thumb_cmc_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_thumb_cmc_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_thumb_cmc_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="0 -0.0049732 0.0007749" />
+      <mass value="0.022768" />
+      <inertia ixx="2E-06" ixy="0" ixz="0" iyy="1.02e-06" iyz="-1.75e-07" izz="1.51e-06" />
+    </inertial>
+  </link>
+  <link name="left_thumb_pip_link">
+    <visual name="left_thumb_pip_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_thumb_pip_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_thumb_pip_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_thumb_pip_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="5.03e-06 -0.023794 0.005" />
+      <mass value="0.02573" />
+      <inertia ixx="5.72e-06" ixy="0" ixz="0" iyy="1.75e-06" iyz="1.45e-06" izz="5.48e-06" />
+    </inertial>
+  </link>
+  <link name="left_thumb_dip_link">
+    <visual name="left_thumb_dip_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_thumb_dip_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_thumb_dip_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_thumb_dip_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-1.38e-05 -0.020432 0.0085859" />
+      <mass value="0.01371" />
+      <inertia ixx="2.57e-06" ixy="0" ixz="0" iyy="9.2e-07" iyz="8.3e-07" izz="2.29e-06" />
+    </inertial>
+  </link>
+  <link name="left_thumb_tip_frame">
+    <visual name="left_thumb_tip_frame_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+      <material name="yellow">
+        <color rgba="1 1 0 1" />
+      </material>
+    </visual>
+    <collision name="left_thumb_tip_frame_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+  </link>
+  <link name="left_index_mcp_link">
+    <visual name="left_index_mcp_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_index_mcp_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_index_mcp_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_index_mcp_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.0014621 0 0.020991" />
+      <mass value="0.01931" />
+      <inertia ixx="4.71e-06" ixy="0" ixz="2E-08" iyy="4.7e-06" iyz="0" izz="6.6e-07" />
+    </inertial>
+  </link>
+  <link name="left_index_pip_link">
+    <visual name="left_index_pip_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_index_pip_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_index_pip_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_index_pip_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.00052321 -4.79e-05 0.020992" />
+      <mass value="0.011321" />
+      <inertia ixx="2.23e-06" ixy="0" ixz="-8E-08" iyy="2.24e-06" iyz="0" izz="3.4e-07" />
+    </inertial>
+  </link>
+  <link name="left_index_tip_frame">
+    <visual name="left_index_tip_frame_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+      <material name="yellow">
+        <color rgba="1 1 0 1" />
+      </material>
+    </visual>
+    <collision name="left_index_tip_frame_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+  </link>
+  <link name="left_middle_mcp_link">
+    <visual name="left_middle_mcp_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_middle_mcp_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_middle_mcp_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_middle_mcp_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.0016354 -5.225e-05 0.023208" />
+      <mass value="0.021278" />
+      <inertia ixx="6.35e-06" ixy="0" ixz="5E-08" iyy="6.35e-06" iyz="0" izz="7.4e-07" />
+    </inertial>
+  </link>
+  <link name="left_middle_pip_link">
+    <visual name="left_middle_pip_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_middle_pip_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_middle_pip_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_middle_pip_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.00052321 -4.79e-05 0.020992" />
+      <mass value="0.011321" />
+      <inertia ixx="2.23e-06" ixy="0" ixz="-8E-08" iyy="2.24e-06" iyz="0" izz="3.4e-07" />
+    </inertial>
+  </link>
+  <link name="left_middle_tip_frame">
+    <visual name="left_middle_tip_frame_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+      <material name="yellow">
+        <color rgba="1 1 0 1" />
+      </material>
+    </visual>
+    <collision name="left_middle_tip_frame_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+  </link>
+  <link name="left_ring_mcp_link">
+    <visual name="left_ring_mcp_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_ring_mcp_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_ring_mcp_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_ring_mcp_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.0014621 0 0.020991" />
+      <mass value="0.01931" />
+      <inertia ixx="4.71e-06" ixy="0" ixz="2E-08" iyy="4.7e-06" iyz="0" izz="6.6e-07" />
+    </inertial>
+  </link>
+  <link name="left_ring_pip_link">
+    <visual name="left_ring_pip_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_ring_pip_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_ring_pip_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_ring_pip_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.00052321 -4.79e-05 0.020992" />
+      <mass value="0.011321" />
+      <inertia ixx="2.23e-06" ixy="0" ixz="-8E-08" iyy="2.24e-06" iyz="0" izz="3.4e-07" />
+    </inertial>
+  </link>
+  <link name="left_ring_tip_frame">
+    <visual name="left_ring_tip_frame_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+      <material name="yellow">
+        <color rgba="1 1 0 1" />
+      </material>
+    </visual>
+    <collision name="left_ring_tip_frame_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+  </link>
+  <link name="left_little_mcp_link">
+    <visual name="left_little_mcp_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_little_mcp_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_little_mcp_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_little_mcp_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.00146313 -4.158e-05 0.01853468" />
+      <mass value="0.01761671" />
+      <inertia ixx="3.75e-06" ixy="0" ixz="3E-08" iyy="3.73e-06" iyz="0" izz="5.7e-07" />
+    </inertial>
+  </link>
+  <link name="left_little_pip_link">
+    <visual name="left_little_pip_link_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/visual/casbot_hand/left_little_pip_link.obj" />
+      </geometry>
+      <material name="metal">
+        <color rgba="0.85 0.85 0.85 1" />
+      </material>
+    </visual>
+    <collision name="left_little_pip_link_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="../mesh/collision/casbot_hand/left_little_pip_link.obj" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.00052321 -4.79e-05 0.020992" />
+      <mass value="0.011321" />
+      <inertia ixx="2.23e-06" ixy="0" ixz="-8E-08" iyy="2.24e-06" iyz="0" izz="3.4e-07" />
+    </inertial>
+  </link>
+  <link name="left_little_tip_frame">
+    <visual name="left_little_tip_frame_vis">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+      <material name="yellow">
+        <color rgba="1 1 0 1" />
+      </material>
+    </visual>
+    <collision name="left_little_tip_frame_col">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.0015" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0" />
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+    </inertial>
+  </link>
+  <joint name="left_thumb_cmc_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0.01725 -0.019999 0.031069" />
+    <parent link="left_palm_base_link" />
+    <child link="left_thumb_cmc_link" />
+    <axis xyz="0 0 1" />
+    <limit effort="0.5" lower="0" upper="2.0944" velocity="2.6175" />
+    <dynamics damping="0.1" friction="0.1" />
+  </joint>
+  <joint name="left_thumb_pip_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0 -0.0105 0.00165" />
+    <parent link="left_thumb_cmc_link" />
+    <child link="left_thumb_pip_link" />
+    <axis xyz="-1 0 0" />
+    <limit effort="1.1" lower="0" upper="0.5236" velocity="2.5303" />
+    <dynamics damping="0.1" friction="0.1" />
+  </joint>
+  <joint name="left_thumb_dip_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="0 -0.0404571702173548 0.0113233112649935" />
+    <parent link="left_thumb_pip_link" />
+    <child link="left_thumb_dip_link" />
+    <axis xyz="-1 0 0" />
+    <limit effort="1.1" lower="0" upper="1.5708" velocity="2.5303" />
+    <dynamics damping="0.1" friction="0.1" />
+    <mimic joint="left_thumb_pip_joint" multiplier="1.0" offset="0.0" />
+  </joint>
+  <joint name="left_thumb_tip_fixed_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 -0.044235 0.02122" />
+    <parent link="left_thumb_dip_link" />
+    <child link="left_thumb_tip_frame" />
+  </joint>
+  <joint name="left_index_mcp_joint" type="revolute">
+    <origin rpy="0.07854 0 0" xyz="0.00025022 -0.027833 0.093267" />
+    <parent link="left_palm_base_link" />
+    <child link="left_index_mcp_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="2.0" lower="0" upper="1.5708" velocity="2.2685" />
+    <dynamics damping="0.1" friction="0.1" />
+  </joint>
+  <joint name="left_index_pip_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="-0.000999999999798432 0 0.0420000000000047" />
+    <parent link="left_index_mcp_link" />
+    <child link="left_index_pip_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="2.0" lower="0" upper="1.5708" velocity="2.2685" />
+    <dynamics damping="0.1" friction="0.1" />
+    <mimic joint="left_index_mcp_joint" multiplier="1.14" offset="0.0" />
+  </joint>
+  <joint name="left_index_tip_fixed_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.002395 0 0.0488" />
+    <parent link="left_index_pip_link" />
+    <child link="left_index_tip_frame" />
+  </joint>
+  <joint name="left_middle_mcp_joint" type="revolute">
+    <origin rpy="0.02618 0 0" xyz="0.00025022 -0.0079444 0.094317" />
+    <parent link="left_palm_base_link" />
+    <child link="left_middle_mcp_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="2.0" lower="0" upper="1.5708" velocity="2.2685" />
+    <dynamics damping="0.1" friction="0.1" />
+  </joint>
+  <joint name="left_middle_pip_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="-0.00125209669046785 0 0.0471448973036052" />
+    <parent link="left_middle_mcp_link" />
+    <child link="left_middle_pip_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="2.0" lower="0" upper="1.5708" velocity="2.2685" />
+    <dynamics damping="0.1" friction="0.1" />
+    <mimic joint="left_middle_mcp_joint" multiplier="1.155" offset="0.0" />
+  </joint>
+  <joint name="left_middle_tip_fixed_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.002395 0 0.0488" />
+    <parent link="left_middle_pip_link" />
+    <child link="left_middle_tip_frame" />
+  </joint>
+  <joint name="left_ring_mcp_joint" type="revolute">
+    <origin rpy="-0.02618 0 0" xyz="0.00025022 0.011946 0.093314" />
+    <parent link="left_palm_base_link" />
+    <child link="left_ring_mcp_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="2.0" lower="0" upper="1.5708" velocity="2.2685" />
+    <dynamics damping="0.1" friction="0.1" />
+  </joint>
+  <joint name="left_ring_pip_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="-0.000999999999795606 0 0.0420000000000048" />
+    <parent link="left_ring_mcp_link" />
+    <child link="left_ring_pip_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="2.0" lower="0" upper="1.5708" velocity="2.2685" />
+    <dynamics damping="0.1" friction="0.1" />
+    <mimic joint="left_ring_mcp_joint" multiplier="1.155" offset="0.0" />
+  </joint>
+  <joint name="left_ring_tip_fixed_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.002395 0 0.0488" />
+    <parent link="left_ring_pip_link" />
+    <child link="left_ring_tip_frame" />
+  </joint>
+  <joint name="left_little_mcp_joint" type="revolute">
+    <origin rpy="-0.07854 0 0" xyz="0.00025022 0.031624 0.090267" />
+    <parent link="left_palm_base_link" />
+    <child link="left_little_mcp_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="2.0" lower="0" upper="1.5708" velocity="2.2685" />
+    <dynamics damping="0.1" friction="0.1" />
+  </joint>
+  <joint name="left_little_pip_joint" type="revolute">
+    <origin rpy="0 0 0" xyz="-0.000999999999988846 0 0.0369999999999856" />
+    <parent link="left_little_mcp_link" />
+    <child link="left_little_pip_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="2.0" lower="0" upper="1.5708" velocity="2.2685" />
+    <dynamics damping="0.1" friction="0.1" />
+    <mimic joint="left_little_mcp_joint" multiplier="1.155" offset="0.0" />
+  </joint>
+  <joint name="left_little_tip_fixed_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.002395 0 0.0488" />
+    <parent link="left_little_pip_link" />
+    <child link="left_little_tip_frame" />
+  </joint>
+</robot>

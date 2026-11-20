@@ -1,0 +1,54 @@
+# Dual Panthera-HT + A2/L1 hand assembly parameters.
+# tools/model/build_description.py reads ONLY this file and the pristine
+# sources/ URDFs, and regenerates urdf/*.urdf deterministically.
+# Units: metres, degrees (converted to radians in the generated URDF).
+
+world:
+  # World frame: midpoint between the two arm bases, on the mounting plane.
+  # +x = common forward direction of both arms (Panthera zero pose points +x),
+  # +z = up, +y = towards the left arm.
+  frame: world
+
+arms:
+  # Centre-to-centre distance between the two base_link origins (user: 480 mm).
+  base_spacing_m: 0.480
+
+  left:
+    # Board mapping is informational for the SDK config; geometry does not use it.
+    # TODO(confirm): dual-nxp.json calls node11 "left", the dual-gello web UI maps
+    # its left-hand card to node12. Confirm which physical arm is on +y.
+    board_node: 11
+    base_xyz_m: [0.0, 0.240, 0.0]     # derived: +base_spacing/2 on y
+    base_rpy_deg: [0.0, 0.0, 0.0]
+    hand: left
+    # Hand roll about the tool (flange z) axis. User: 45 deg offset.
+    # Sign chosen so that at the arm zero pose the palm faces down AND inwards
+    # (towards the other arm). TODO(confirm) against the real assembly.
+    hand_roll_deg: -45.0
+
+  right:
+    board_node: 12
+    base_xyz_m: [0.0, -0.240, 0.0]
+    base_rpy_deg: [0.0, 0.0, 0.0]
+    hand: right
+    hand_roll_deg: 45.0
+
+flange:
+  # link6 is a thin flange disc; its STL spans x in [0, 0.005] m in the link6
+  # frame and joint6 rotates about link6 +x. The tool flange face is x = 0.005.
+  offset_along_link6_x_m: 0.005
+  # flange_frame convention: z = tool axis (= link6 +x), y = link6 +y,
+  # x = link6 -z. This is a fixed Ry(+90 deg) from link6.
+
+hand_mount:
+  # Adapter / spacer thickness between Panthera flange face and the hand
+  # mount frame, along the tool axis. Unknown -> 0 (TODO: measure).
+  adapter_thickness_m: 0.0
+  # Source A2 assembly: hand_mount_frame -> palm_base_link = (0, 0, 0.0095), rpy 0.
+  palm_offset_xyz_m: [0.0, 0.0, 0.0095]
+
+tcp:
+  # Default task-space frame for the controller, expressed in palm_base_link.
+  # Placeholder roughly at the finger MCP row on the palm axis. TODO: set from use case.
+  xyz_m: [0.0, 0.0, 0.100]
+  rpy_deg: [0.0, 0.0, 0.0]

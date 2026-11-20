@@ -1,0 +1,295 @@
+{
+  "urdf": "model/panthera_dual_description/urdf/panthera_dual_a2l1.urdf",
+  "pinocchio": "4.0.0",
+  "nq": 24,
+  "nv": 24,
+  "movable_joints": [
+    "left_joint1",
+    "left_joint2",
+    "left_joint3",
+    "left_joint4",
+    "left_joint5",
+    "left_joint6",
+    "left_index_mcp_joint",
+    "left_index_pip_joint",
+    "left_little_mcp_joint",
+    "left_little_pip_joint",
+    "left_middle_mcp_joint",
+    "left_middle_pip_joint",
+    "left_ring_mcp_joint",
+    "left_ring_pip_joint",
+    "left_thumb_cmc_joint",
+    "left_thumb_pip_joint",
+    "left_thumb_dip_joint",
+    "right_joint1",
+    "right_joint2",
+    "right_joint3",
+    "right_joint4",
+    "right_joint5",
+    "right_joint6",
+    "right_index_mcp_joint",
+    "right_index_pip_joint",
+    "right_little_mcp_joint",
+    "right_little_pip_joint",
+    "right_middle_mcp_joint",
+    "right_middle_pip_joint",
+    "right_ring_mcp_joint",
+    "right_ring_pip_joint",
+    "right_thumb_cmc_joint",
+    "right_thumb_pip_joint",
+    "right_thumb_dip_joint"
+  ],
+  "mimic_joints": [
+    "left_index_pip_joint",
+    "left_little_pip_joint",
+    "left_middle_pip_joint",
+    "left_ring_pip_joint",
+    "left_thumb_dip_joint",
+    "right_index_pip_joint",
+    "right_little_pip_joint",
+    "right_middle_pip_joint",
+    "right_ring_pip_joint",
+    "right_thumb_dip_joint"
+  ],
+  "structure": {
+    "base_spacing_m": 0.48,
+    "base_xyz_m": {
+      "left": [
+        0.0,
+        0.24,
+        0.0
+      ],
+      "right": [
+        0.0,
+        -0.24,
+        0.0
+      ]
+    },
+    "left": {
+      "hand_root": "left_palm_base_link",
+      "tool_axis_world_zero_pose": [
+        1.0,
+        0.0,
+        2.220446049250313e-16
+      ],
+      "tool_axis_parallel_joint6_axis": true,
+      "flange_xyz_world_zero_pose": [
+        0.08814851171347968,
+        0.2395491374382439,
+        0.1693891374376919
+      ],
+      "palm_origin_along_tool_axis_from_flange_m": 0.009499999999999995,
+      "palm_normal_world_zero_pose": [
+        0.0,
+        -0.707106781187,
+        -0.707106781187
+      ],
+      "hand_roll_about_tool_axis_deg": -45.00000000000001,
+      "tcp_xyz_world_zero_pose": [
+        0.1976485117134797,
+        0.2395491374382439,
+        0.16938913743769193
+      ],
+      "index_curl_moves_tip_towards_palm_plus_x": true
+    },
+    "right": {
+      "hand_root": "right_palm_base_link",
+      "tool_axis_world_zero_pose": [
+        1.0,
+        0.0,
+        2.220446049250313e-16
+      ],
+      "tool_axis_parallel_joint6_axis": true,
+      "flange_xyz_world_zero_pose": [
+        0.08814851171347968,
+        -0.24045086256175607,
+        0.1693891374376919
+      ],
+      "palm_origin_along_tool_axis_from_flange_m": 0.009499999999999995,
+      "palm_normal_world_zero_pose": [
+        0.0,
+        0.707106781187,
+        -0.707106781187
+      ],
+      "hand_roll_about_tool_axis_deg": 45.00000000000001,
+      "tcp_xyz_world_zero_pose": [
+        0.1976485117134797,
+        -0.24045086256175607,
+        0.16938913743769193
+      ],
+      "index_curl_moves_tip_towards_palm_plus_x": true
+    },
+    "mass_kg": {
+      "left_arm": 4.4478943,
+      "left_hand": 0.61699671,
+      "right_arm": 4.4478943,
+      "right_hand": 0.61699671
+    },
+    "total_mass_kg": 7.6062942
+  },
+  "single_vs_dual_max_abs_error": {
+    "left": 2.220446049250313e-16,
+    "right": 2.7755575615628914e-16
+  },
+  "collision": {
+    "geometry_objects": 48,
+    "all_pairs": 1128,
+    "samples": 6000,
+    "sampling_seconds": 5.92,
+    "disabled_by_reason": {
+      "Adjacent": 70,
+      "HandInternal": 230,
+      "Never": 8,
+      "Static": 1
+    },
+    "enabled_pairs": 819,
+    "enabled_cross_arm_pairs": 573,
+    "zero_pose_contacts": [],
+    "ready_pose_contacts_enabled": [],
+    "sampled_contact_rate_enabled_top": [
+      [
+        "right_link1",
+        "right_palm_base_link",
+        0.030666666666666665
+      ],
+      [
+        "left_link1",
+        "left_palm_base_link",
+        0.027833333333333335
+      ],
+      [
+        "right_base_link",
+        "right_palm_base_link",
+        0.027833333333333335
+      ],
+      [
+        "left_base_link",
+        "left_palm_base_link",
+        0.025833333333333333
+      ],
+      [
+        "right_link2",
+        "right_link5",
+        0.025166666666666667
+      ],
+      [
+        "left_link2",
+        "left_link5",
+        0.0245
+      ],
+      [
+        "right_link2",
+        "right_palm_base_link",
+        0.023166666666666665
+      ],
+      [
+        "right_base_link",
+        "right_link5",
+        0.022833333333333334
+      ],
+      [
+        "left_base_link",
+        "left_link4",
+        0.022
+      ],
+      [
+        "left_base_link",
+        "left_link5",
+        0.021666666666666667
+      ],
+      [
+        "left_link2",
+        "left_palm_base_link",
+        0.020666666666666667
+      ],
+      [
+        "right_link2",
+        "right_link6",
+        0.02033333333333333
+      ],
+      [
+        "left_link4",
+        "left_palm_base_link",
+        0.018833333333333334
+      ],
+      [
+        "right_base_link",
+        "right_link4",
+        0.018666666666666668
+      ],
+      [
+        "right_link4",
+        "right_palm_base_link",
+        0.018666666666666668
+      ],
+      [
+        "left_link2",
+        "left_link6",
+        0.0185
+      ],
+      [
+        "left_link1",
+        "left_link5",
+        0.017
+      ],
+      [
+        "right_link1",
+        "right_link5",
+        0.015333333333333332
+      ],
+      [
+        "right_base_link",
+        "right_thumb_pip_link",
+        0.013833333333333333
+      ],
+      [
+        "left_link3",
+        "right_link3",
+        0.012666666666666666
+      ],
+      [
+        "left_base_link",
+        "left_link6",
+        0.012333333333333333
+      ],
+      [
+        "left_link1",
+        "left_link6",
+        0.011833333333333333
+      ],
+      [
+        "right_base_link",
+        "right_thumb_cmc_link",
+        0.011833333333333333
+      ],
+      [
+        "right_link1",
+        "right_link6",
+        0.011833333333333333
+      ],
+      [
+        "left_link3",
+        "right_link2",
+        0.011666666666666667
+      ]
+    ]
+  },
+  "cross_arm_min_distance": {
+    "zero": {
+      "min_distance_m": 0.28590973541095677,
+      "pair": [
+        "left_thumb_dip_link",
+        "right_thumb_dip_link"
+      ]
+    },
+    "ready": {
+      "min_distance_m": 0.28590973541095677,
+      "pair": [
+        "left_thumb_dip_link",
+        "right_thumb_dip_link"
+      ]
+    }
+  },
+  "srdf_roundtrip_enabled_pairs": 819,
+  "srdf_roundtrip_ok": true
+}
