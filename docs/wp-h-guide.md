@@ -2,7 +2,7 @@
 
 本文用于指导现场实机验收（对应 [PLAN.md](PLAN.md) WP-H）。**所有带电与运动阶段必须有人在场，急停开关触手可及。** 验收记录与原始日志统一归档至 `validation/<YYYYMMDD>/`。
 
-> **当前工具就绪度提醒**：目前仓库已就绪刷写工具（`firmware/tools/flash-dual.py`）和单次快照工具（`panthera-read-state`）；Stage 2–6 的交互运动脚本需在补完 WP-F（`python/` pybind11 绑定与示例）或新增对应 C++ 验收入口后直接调用 `DualArm` 执行。
+> 工具入口为 `python examples/wp_h_accept.py <stage> --smoke`（回环）或 `--real`（现场）。用 `--help` 查看 Stage 1–6 的子命令。各阶段 JSON 的 `automated_checks` 记录脚本结果，人工判定与尺寸读数填入现场报告。
 
 ---
 
@@ -12,7 +12,7 @@
 
 - [ ] **离线验收全绿**：在目标工控机上确认构建与测试通过：
   ```bash
-  ctest --test-dir build --output-on-failure
+  ctest --test-dir build/host --output-on-failure
   (cd firmware/images && sha256sum -c SHA256SUMS)
   ```
 - [ ] **固件镜像摘要核对**：
@@ -48,7 +48,7 @@
 1. 给两臂驱动上电，观察板端 `BOOT_HOME` 自动回零过程（先手部就绪等待，再经 `home_waypoint` 回到零位 `HOME_HOLD`）。确认运动平稳、无碰撞、最终静止在零位。
 2. 运行只读状态检查（不申请租约、不接管）：
    ```bash
-   ./build/panthera-read-state
+   ./build/host/panthera-read-state
    ```
 3. 持续只读采样 60 秒（在 WP-F / 验收工具里持续 `poll()` 统计 `ArmState`、`HandState`、`Diagnostics`），核对：
    - **链路质量**：两板 `ArmState` 实际频率 ≈ 500 Hz，记录接收间隔 p50/p99 与 `missing` 序号缺口；`Diagnostics` 中 CAN 错误计数为 0、`fault_code_raw` 全 0。
@@ -105,7 +105,7 @@
 1. **笛卡尔跟踪**：两臂分别执行 ±50 mm 直线移动与 ±15° 姿态转动，核对 `state().tcp` 反馈方向与世界坐标系约定（+x 前、+y 左、+z 上）一致，记录稳态误差与 `qp_time`。
 2. **双臂对向靠近自停**：初始拉开至 > 150 mm，以低速（如 `translation_speed = 0.05 m/s`）命令两臂 TCP 朝中平面 `y = 0` 对向穿越。
    - 观察随着臂间距离进入 `d_i = 100 mm`，双臂自动减速并稳定停在 **`d_s = 20 mm`** 附近（不碰撞、不震荡、不触发误硬停）。
-   - 用直尺/卡尺实测两手最近部位物理间隙，核对模型报告的臂间距离 `collision_state(...).inter_arm` 与实测间隙的偏差（注意 `ControlState.clearance` 含同臂近距对，不直接代表臂间距离；确认 D5 零厚度转接件和手包络余量带来的偏置方向是否保守）。
+   - 从运动包络外记录双手停止姿态，使用非接触测量或在驱动安全隔离并机械固定后实测两手最近部位物理间隙，核对模型报告的臂间距离 `collision_state(...).inter_arm` 与实测间隙的偏差（注意 `ControlState.clearance` 含同臂近距对，不直接代表臂间距离；确认 D5 零厚度转接件和手包络余量带来的偏置方向是否保守）。
 3. **通过标准**：世界坐标方向正确；对向指令下稳定自停在安全距离外，物理无接触且模型间隙保守。
 
 ---

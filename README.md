@@ -18,7 +18,7 @@ Panthera-HT 双臂 + A2/L1 灵巧手的上位机空间控制 SDK。设计目标�
 | [generated/model/](generated/model)、[tools/codegen/](tools/codegen) | 双臂 FK、雅可比、重力、碰撞几何及逐对阈值 | 已生成并校验 |
 | [controller.hpp](include/panthera/controller.hpp) | 双臂任务空间 QP、关节目标、手部透传与专家模式 | 已通过闭环仿真 |
 | [firmware/](firmware/README.md) | 固定源版本、左右板配置、构建与烧录工具及预编译镜像 | 已通过原生测试和重复构建 |
-| `python/` | Python 接口与 wheel | WP-F 待实现 |
+| [python/](python/panthera_sdk) | Python 接口与 wheel | Linux x86_64、Windows MSYS2 UCRT64 |
 
 ## 构建主机代码
 
@@ -36,6 +36,23 @@ cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/host
 ctest --test-dir build/host --output-on-failure
 ```
+
+## Python 安装与验收工具
+
+在已递归检出子模块的仓库根目录，用 Python ≥ 3.10 安装 `python -m pip install .`。CI 产物中的 wheel 可用 `python -m pip install <wheel路径>` 安装，请选择与解释器版本及平台匹配的文件。Windows wheel 面向 **MSYS2 UCRT64 Python**；在 UCRT64 终端安装 MinGW-w64 GCC、CMake、Ninja、Python、pip 和 NumPy。
+
+```bash
+python examples/read_state.py
+python examples/cartesian_move.py
+python examples/approach_stop.py
+python examples/hand_passthrough.py
+python examples/expert_mit.py
+python examples/wp_h_accept.py stage2-takeover --smoke
+```
+
+默认启动本机 UDP 模拟板。现场按[WP-H 指南](docs/wp-h-guide.md)逐阶段运行，显式传入 `--real`。专家示例额外要求 `--i-understand-no-safety`，发送当前原始编码器位置的短时 MIT 保持命令。JSON 和 CSV 默认写入 `validation/<YYYYMMDD>/`，可用 `--output` 改目录。自动结果、运行时长和待人工核对项记录在同一份报告中。
+
+`with DualArm(...) as robot` 在退出时软停，进入后显式调用 `robot.enable()`。接管期间按 Ctrl+C 会回滚已取得的租约。`BoardTelemetry.poll()` 返回独立快照，`received_at` 为主机单调时钟秒数，`qp_time` 单位为秒。用 `collision_state(state.measured).inter_arm` 读取模型的最小臂间距离（米）。
 
 ## 读取两板状态
 

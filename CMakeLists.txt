@@ -49,6 +49,17 @@ if(PANTHERA_BUILD_PYTHON)
     pybind11_add_module(_core MODULE NO_EXTRAS python/panthera_sdk/_core.cpp
         python/panthera_sdk/telemetry.cpp)
     target_link_libraries(_core PRIVATE panthera_controller)
+    if(BUILD_TESTING)
+        set(python_test_root "${CMAKE_CURRENT_BINARY_DIR}/python")
+        set_target_properties(_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${python_test_root}/panthera_sdk")
+        file(MAKE_DIRECTORY "${python_test_root}/panthera_sdk")
+        configure_file(python/panthera_sdk/__init__.py "${python_test_root}/panthera_sdk/__init__.py" COPYONLY)
+        foreach(test_name IN ITEMS test_python_sdk test_python_examples)
+            add_test(NAME ${test_name} COMMAND "${CMAKE_COMMAND}" -E env
+                "PYTHONPATH=${python_test_root}" "${Python_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/${test_name}.py")
+        endforeach()
+    endif()
     install(TARGETS _core DESTINATION panthera_sdk COMPONENT python)
 endif()
 add_executable(panthera-read-state examples/read_state.cpp)
