@@ -5,6 +5,7 @@
 | 组件 | 版本 | Git 提交 | 许可 |
 | --- | --- | --- | --- |
 | wirelink | 固件 11.20 的协议核心 | `608551b3caac52fe498ed6a677ddd6392a793dd8` | ISC |
+| standalone Asio（wirelink UDP 适配器） | 1.38.1 | `bbecff21a23b97c34641f0f1f08b28c91b9c77cf` | Boost Software License 1.0 |
 | WLC | v0.8.0 | `758d12a2466e254cb4d913fce578fb7deae766ec` | 此提交的仓库根目录及 Cargo.toml 未声明编译器许可；模板附带各自的声明 |
 | acados | v0.6.1 | `de42a54bf31d95bcea907ebc280b6ec678c7bd36` | BSD-2-Clause |
 | HPIPM（acados 子模块） | 随 v0.6.1 | `bad1123a96136fce3cdd8bbcbe24b853d012b840` | BSD-2-Clause |

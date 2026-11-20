@@ -8,6 +8,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 include(CTest)
 
+set(WIRELINK_BUILD_ASIO_UDP_ADAPTER ON)
+set(WIRELINK_ASIO_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/asio/include")
 add_subdirectory(third_party/wirelink EXCLUDE_FROM_ALL)
 set(BLASFEO_TARGET GENERIC CACHE STRING "BLASFEO instruction set for SDK binaries")
 # Keep acados from selecting its source checkout as the installation prefix.
@@ -26,6 +28,12 @@ add_library(panthera_protocol STATIC
 target_include_directories(panthera_protocol PUBLIC generated/protocol)
 target_link_libraries(panthera_protocol PUBLIC Wirelink::wirelink)
 
+add_library(panthera_telemetry src/telemetry.cpp)
+target_include_directories(panthera_telemetry PUBLIC include)
+target_link_libraries(panthera_telemetry PUBLIC panthera_protocol PRIVATE Wirelink::asio_udp)
+add_executable(panthera-read-state examples/read_state.cpp)
+target_link_libraries(panthera-read-state PRIVATE panthera_telemetry)
+
 # Build the QP backend even when the integration test is disabled.
 add_custom_target(panthera_host ALL DEPENDS panthera_protocol acados)
 
@@ -33,6 +41,14 @@ if(BUILD_TESTING)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(NAME protocol_provenance
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/ci/check_protocol.py")
+    add_executable(telemetry_loopback_test tests/telemetry_loopback.cpp)
+    target_include_directories(telemetry_loopback_test SYSTEM PRIVATE "${WIRELINK_ASIO_INCLUDE_DIR}")
+    target_link_libraries(telemetry_loopback_test PRIVATE panthera_telemetry)
+    if(WIN32)
+        target_compile_definitions(telemetry_loopback_test PRIVATE _WIN32_WINNT=0x0601 WIN32_LEAN_AND_MEAN NOMINMAX)
+        target_link_libraries(telemetry_loopback_test PRIVATE ws2_32 mswsock)
+    endif()
+    add_test(NAME telemetry_loopback COMMAND telemetry_loopback_test)
     add_executable(host_dependencies_test tests/host_dependencies.cpp)
     target_link_libraries(host_dependencies_test PRIVATE panthera_protocol panthera_eigen acados)
     add_test(NAME host_dependencies COMMAND host_dependencies_test)
