@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+option(PANTHERA_BUILD_PYTHON "Build the Python SDK extension" OFF)
 include(CTest)
 
 set(WIRELINK_BUILD_ASIO_UDP_ADAPTER ON)
@@ -19,6 +20,9 @@ add_subdirectory(third_party/acados EXCLUDE_FROM_ALL)
 add_library(panthera_eigen INTERFACE)
 target_include_directories(panthera_eigen SYSTEM INTERFACE third_party/eigen)
 set(PYBIND11_FINDPYTHON ON)
+if(PANTHERA_BUILD_PYTHON)
+    find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
+endif()
 add_subdirectory(third_party/pybind11 EXCLUDE_FROM_ALL)
 
 add_library(panthera_protocol STATIC
@@ -44,9 +48,7 @@ target_link_libraries(panthera_controller PUBLIC panthera_motion panthera_teleme
 if(WIN32)
     target_compile_definitions(panthera_controller PRIVATE _WIN32_WINNT=0x0601 WIN32_LEAN_AND_MEAN NOMINMAX)
 endif()
-option(PANTHERA_BUILD_PYTHON "Build the Python SDK extension" OFF)
 if(PANTHERA_BUILD_PYTHON)
-    find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
     pybind11_add_module(_core MODULE NO_EXTRAS python/panthera_sdk/_core.cpp
         python/panthera_sdk/telemetry.cpp)
     target_link_libraries(_core PRIVATE panthera_controller)
