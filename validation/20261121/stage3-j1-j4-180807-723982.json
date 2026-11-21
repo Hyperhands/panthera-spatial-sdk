@@ -1,0 +1,270 @@
+{
+  "stage": "stage3-j1-j4",
+  "run_mode": "real",
+  "human_checks": "pending_human_confirmation",
+  "can": {
+    "left": {
+      "samples": 347,
+      "warning_samples": 55,
+      "tx_error_peak": 12,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.2016906380013097,
+      "last_sample_nonzero": false,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    },
+    "right": {
+      "samples": 347,
+      "warning_samples": 51,
+      "tx_error_peak": 12,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.19996336700569373,
+      "last_sample_nonzero": false,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    }
+  },
+  "field_checks": {
+    "directions_noise_overshoot": "pending_human_confirmation"
+  },
+  "commit": "fc19876f2bf9cd622274bf0249b0f5317a2b3e18",
+  "acceptance_file_sha256": "fb2b4c1209c4bae9d02d920a77f648c50837e53b5bc0a564809b46fcfddb54aa",
+  "angular_arrival_tolerance_deg": 2.0,
+  "axis_steps": [
+    {
+      "side": "left",
+      "joint": 1,
+      "leg": "positive",
+      "target_deg": 5.156620156177409,
+      "arrival_deg": 3.2794190670030074,
+      "end_deg": 4.735107616173618,
+      "travel_deg": 2.7410889563885785,
+      "end_error_deg": -0.4215125400037909,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 1,
+      "leg": "center",
+      "target_deg": 0.0,
+      "arrival_deg": 1.9500732226651774,
+      "end_deg": 0.31860351198450065,
+      "travel_deg": -4.4165041041891175,
+      "end_error_deg": 0.31860351198450065,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 1,
+      "leg": "negative",
+      "target_deg": -5.156620156177409,
+      "arrival_deg": -3.268432707723042,
+      "end_deg": -4.586792192780907,
+      "travel_deg": -4.899902551805851,
+      "end_error_deg": 0.5698279633965022,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 1,
+      "leg": "center",
+      "target_deg": 0.0,
+      "arrival_deg": -1.9610595819451428,
+      "end_deg": -0.307617206065388,
+      "travel_deg": 4.279174986715518,
+      "end_error_deg": -0.307617206065388,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 2,
+      "leg": "positive",
+      "target_deg": 62.452399669259734,
+      "arrival_deg": 60.48523196866816,
+      "end_deg": 62.51770502036719,
+      "travel_deg": 5.37781091471207,
+      "end_error_deg": 0.06530535110745461,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 2,
+      "leg": "center",
+      "target_deg": 57.29577951308232,
+      "arrival_deg": 59.24377678512664,
+      "end_deg": 57.48596613052133,
+      "travel_deg": -5.0317388898458635,
+      "end_error_deg": 0.19018661743900367,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 2,
+      "leg": "negative",
+      "target_deg": 52.13915935690491,
+      "arrival_deg": 54.041751033988604,
+      "end_deg": 52.49267779060805,
+      "travel_deg": -4.993288339913277,
+      "end_error_deg": 0.35351843370313674,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 2,
+      "leg": "center",
+      "target_deg": 57.29577951308232,
+      "arrival_deg": 55.354615845302604,
+      "end_deg": 57.37610253772167,
+      "travel_deg": 4.883424747113621,
+      "end_error_deg": 0.08032302463934826,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 3,
+      "leg": "positive",
+      "target_deg": 79.64113352318444,
+      "arrival_deg": 77.75024947335706,
+      "end_deg": 79.04114156611112,
+      "travel_deg": 4.768066267126692,
+      "end_error_deg": -0.5999919570733141,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 3,
+      "leg": "center",
+      "target_deg": 74.48451336700703,
+      "arrival_deg": 76.4373778318539,
+      "end_deg": 75.03113067420747,
+      "travel_deg": -4.010010891903656,
+      "end_error_deg": 0.5466173072004494,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 3,
+      "leg": "negative",
+      "target_deg": 69.32789321082961,
+      "arrival_deg": 71.30127365149023,
+      "end_deg": 70.01587303082884,
+      "travel_deg": -5.0152576433786225,
+      "end_error_deg": 0.687979819999228,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 3,
+      "leg": "center",
+      "target_deg": 74.48451336700703,
+      "arrival_deg": 72.5317390606572,
+      "end_deg": 73.95996576705271,
+      "travel_deg": 3.944092736223863,
+      "end_error_deg": -0.5245475999543174,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 4,
+      "leg": "positive",
+      "target_deg": -23.491269600363754,
+      "passed": false,
+      "end_deg": -28.520508436067715,
+      "end_error_deg": -5.029238835703961,
+      "last_second_deg_range": [
+        -28.520508436067715,
+        -28.515015256427734
+      ]
+    }
+  ],
+  "deferred_joints": [
+    "left J5",
+    "left J6",
+    "right J5",
+    "right J6"
+  ],
+  "preflight": {
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "last_deg": [
+      4.707641717973704,
+      57.139894105655124,
+      73.80065843485133,
+      -27.50427361776549,
+      -0.027465821493687745,
+      0.5712890817326198,
+      -0.24169923714858008,
+      57.12341627428247,
+      74.2511025804245,
+      -27.608644030925163,
+      -0.2911376938258662,
+      0.47241211501719466
+    ],
+    "margin_m": 0.0009850971345214954
+  },
+  "after": {
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "last_deg": [
+      -0.307617206065388,
+      57.31567585413457,
+      74.0258839227325,
+      -28.580933412107527,
+      -0.021972656861444863,
+      0.076904301516347,
+      -0.24169923714858008,
+      57.128907746375155,
+      74.34448492675692,
+      -27.608644030925163,
+      -0.2911376938258662,
+      0.47241211501719466
+    ],
+    "margin_m": 0.0009850971345214954
+  },
+  "can_followup": {
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "last_deg": [
+      -0.307617206065388,
+      57.32116732622726,
+      74.0258839227325,
+      -28.580933412107527,
+      -0.021972656861444863,
+      0.07141113521657748,
+      -0.24169923714858008,
+      57.128907746375155,
+      74.33899345466423,
+      -27.608644030925163,
+      -0.2911376938258662,
+      0.47241211501719466
+    ],
+    "margin_m": 0.0009850971345214676
+  },
+  "actual_duration_s": 34.7408814990049,
+  "automated_checks": "failed",
+  "error": "Timed out waiting for measured joint targets",
+  "control_csv": {
+    "name": "stage3-j1-j4-180807-723982.csv",
+    "sha256": "ee662768af565b6ed0d2e2669e24eb300c99c2da4741bb55021ffa20c46f9fa3"
+  }
+}
