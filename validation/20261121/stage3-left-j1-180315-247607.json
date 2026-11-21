@@ -1,0 +1,139 @@
+{
+  "stage": "stage3-left-j1",
+  "run_mode": "real",
+  "human_checks": "pending_human_confirmation",
+  "can": {
+    "left": {
+      "samples": 219,
+      "warning_samples": 31,
+      "tx_error_peak": 14,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.09999688899551984,
+      "last_sample_nonzero": false,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    },
+    "right": {
+      "samples": 219,
+      "warning_samples": 20,
+      "tx_error_peak": 8,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.09999772300943732,
+      "last_sample_nonzero": false,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    }
+  },
+  "field_checks": {
+    "left_j1_direction_noise_overshoot": "pending_human_confirmation"
+  },
+  "commit": "295b8f34e0dcdfacc5c86d237d53c05638d675e3",
+  "deferred_axes": [
+    "J5",
+    "J6"
+  ],
+  "phases": {
+    "ready": {
+      "target_deg": [
+        0.0,
+        57.29577951308232,
+        74.48451336700703,
+        -28.64788975654116,
+        0.0,
+        0.0,
+        0.0,
+        57.29577951308232,
+        74.48451336700703,
+        -28.64788975654116,
+        0.0,
+        0.0
+      ],
+      "end_deg": [
+        0.3295898445840397,
+        57.139894105655124,
+        73.8061567371332,
+        -27.498780438125507,
+        -0.16479492229201986,
+        0.5163574454153509,
+        -0.24169923714858008,
+        57.12341627428247,
+        74.2511025804245,
+        -27.608644030925163,
+        -0.2911376938258662,
+        0.45593262945809926
+      ],
+      "elapsed_s": 0.7215492950053886,
+      "min_hard_margin_m": 0.0009830102308228394,
+      "max_tracking_error_deg": 1.1491093184156527,
+      "passed": true
+    },
+    "positive": {
+      "target_deg": [
+        5.156620156177409,
+        57.29577951308232,
+        74.48451336700703,
+        -28.64788975654116,
+        0.0,
+        0.0,
+        0.0,
+        57.29577951308232,
+        74.48451336700703,
+        -28.64788975654116,
+        0.0,
+        0.0
+      ],
+      "end_deg": [
+        4.707641717973704,
+        57.139894105655124,
+        73.8061567371332,
+        -27.50427361776549,
+        -0.027465821493687745,
+        0.45593262945809926,
+        -0.24169923714858008,
+        57.12341627428247,
+        74.2511025804245,
+        -27.608644030925163,
+        -0.2856445408663099,
+        0.45593262945809926
+      ],
+      "elapsed_s": 19.998261882006773,
+      "min_hard_margin_m": 0.0009830102308228394,
+      "max_tracking_error_deg": 1.14361613877567,
+      "axis_error_deg": 0.44897843820370475
+    }
+  },
+  "speed_limit_rad_s": 0.25,
+  "acceleration_limit_rad_s2": 4.0,
+  "axis_target_tolerance_rad": 0.004,
+  "preflight": {
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "last_deg": [
+      0.3515625097831178,
+      57.139894105655124,
+      73.79516696275864,
+      -27.498780438125507,
+      -0.16479492229201986,
+      0.5712890817326198,
+      -0.24169923714858008,
+      57.117921387095194,
+      74.2511025804245,
+      -27.608644030925163,
+      -0.2911376938258662,
+      0.47241211501719466
+    ],
+    "margin_m": 0.0009850971345214676
+  },
+  "after_error": "Opening realtime UDP socket: Address already in use",
+  "actual_duration_s": 21.981279901010566,
+  "automated_checks": "failed",
+  "error": "positive: measured target timeout"
+}

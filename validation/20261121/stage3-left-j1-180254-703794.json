@@ -1,0 +1,105 @@
+{
+  "stage": "stage3-left-j1",
+  "run_mode": "real",
+  "human_checks": "pending_human_confirmation",
+  "can": {
+    "left": {
+      "samples": 70,
+      "warning_samples": 9,
+      "tx_error_peak": 4,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.09933223700500093,
+      "last_sample_nonzero": false,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    },
+    "right": {
+      "samples": 70,
+      "warning_samples": 10,
+      "tx_error_peak": 11,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.0,
+      "last_sample_nonzero": false,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    }
+  },
+  "field_checks": {
+    "left_j1_direction_noise_overshoot": "pending_human_confirmation"
+  },
+  "commit": "295b8f34e0dcdfacc5c86d237d53c05638d675e3",
+  "deferred_axes": [
+    "J5",
+    "J6"
+  ],
+  "phases": {
+    "ready": {
+      "target_deg": [
+        0.0,
+        57.29577951308232,
+        74.48451336700703,
+        -28.64788975654116,
+        0.0,
+        0.0,
+        0.0,
+        57.29577951308232,
+        74.48451336700703,
+        -28.64788975654116,
+        0.0,
+        0.0
+      ],
+      "end_deg": [
+        0.3240966916244834,
+        57.139894105655124,
+        73.8061567371332,
+        -27.498780438125507,
+        -0.16479492229201986,
+        0.4669189353772119,
+        -0.24169923714858008,
+        57.128907746375155,
+        74.2511025804245,
+        -27.608644030925163,
+        -0.2856445408663099,
+        0.4504394498181165
+      ],
+      "elapsed_s": 5.771411939000245,
+      "min_hard_margin_m": 0.0009816198081095961,
+      "max_tracking_error_deg": 1.1491093184156527,
+      "passed": true
+    }
+  },
+  "speed_limit_rad_s": 0.25,
+  "acceleration_limit_rad_s2": 4.0,
+  "axis_target_tolerance_rad": 0.004,
+  "preflight": {
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "last_deg": [
+      0.35705566274267414,
+      0.48889160057629005,
+      1.307373125777899,
+      -2.8729248408613413,
+      -0.16479492229201986,
+      0.5712890817326198,
+      -0.24169923714858008,
+      0.5822753876517324,
+      2.0269775241815244,
+      -2.8454591561048392,
+      -0.2911376938258662,
+      0.49987795985625555
+    ],
+    "margin_m": 0.0009885786995039308
+  },
+  "after_error": "Opening realtime UDP socket: Address already in use",
+  "actual_duration_s": 7.021946660999674,
+  "automated_checks": "failed",
+  "error": "Left J1 not centered for direction check"
+}
