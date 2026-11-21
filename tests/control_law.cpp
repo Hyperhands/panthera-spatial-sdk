@@ -73,9 +73,16 @@ void check_field_hold() {
     std::array<ArmTarget, 2> targets{};
     for (int side = 0; side < 2; ++side)
         targets[side].joint = start.segment<6>(6 * side);
-    auto hold = [&](const JointVector& measured) {
+    auto hold = [&](const JointVector& measured, int tick) {
+        const auto begin = HostClock::now();
         law.step(measured, targets);
-        check(!law.state.frozen && law.state.consecutive_failures == 0, "field hold froze");
+        if (law.state.frozen || law.state.consecutive_failures) {
+            const auto elapsed =
+                std::chrono::duration_cast<std::chrono::microseconds>(HostClock::now() - begin);
+            std::cerr << "Field hold tick " << tick << ", step " << elapsed.count()
+                      << " us, solver " << law.state.qp_time.count() / 1000. << " us\n";
+            throw std::runtime_error("field hold froze");
+        }
         check((law.state.reference - start).lpNorm<Eigen::Infinity>() < 1e-4,
               "hold reference drifted");
         check((law.state.reference - measured).lpNorm<Eigen::Infinity>() < .006, "excessive lead");
@@ -85,7 +92,7 @@ void check_field_hold() {
         measured[3] -= bias * deg;
         law.reset(start);
         for (int k = 0; k < 5000; ++k)
-            hold(measured);
+            hold(measured, k);
     }
     // The initial sag in the recorded takeover settles within 100 ms.
     law.reset(start);
@@ -95,7 +102,7 @@ void check_field_hold() {
         measured[3] += (-.115 * ramp + (k % 2 ? .0055 : -.0055)) * deg;
         measured[7] += .110 * ramp * deg;
         measured[9] -= .055 * ramp * deg;
-        hold(measured);
+        hold(measured, k);
     }
     for (int side = 0; side < 2; ++side)
         for (double wrist : {-1., 1.}) {

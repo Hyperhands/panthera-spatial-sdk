@@ -43,8 +43,9 @@ void check_offset_speed_boxes(MotionQp& qp) {
         row.gradient.segment<3>(6 * side + 2) << (side ? -.05535 : -.05534), .02451, .01395;
         row.clearance_margin = side ? -.000172 : -.000170;
     }
-    check(!qp.solve(zero, zero, closing, h, zero, bounds, folded).success,
-          "incompatible folded-pose collision rows accepted");
+    const auto infeasible = qp.solve(zero, zero, closing, h, zero, bounds, folded);
+    check(!infeasible.success && infeasible.solves == 0,
+          "incompatible folded-pose collision rows reached solver");
 
     bounds.max_speed.setConstant(.8);
     const JointVector normal = JointVector::Unit(2) - JointVector::Unit(8);

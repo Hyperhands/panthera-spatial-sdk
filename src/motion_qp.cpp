@@ -38,10 +38,6 @@ struct MotionQp::Impl {
         out = ocp_qp_out_create_from_xcond_dims(dims);
         opts =
             static_cast<ocp_qp_xcond_solver_opts*>(ocp_qp_xcond_solver_opts_create(config, dims));
-        // Use LQ factorization so incompatible collision and acceleration constraints
-        // can return a failure without stalling in Cholesky regularization.
-        char mode[] = "ROBUST";
-        ocp_qp_xcond_solver_opts_set(config, opts, "hpipm_mode", mode);
         // Avoid HPIPM's heuristic slack initialization for narrow, offset speed boxes.
         // Use symmetric slack/multiplier initialization and separate primal/dual step lengths.
         int warm = 0, t0_init = 0, split_step = 1;
@@ -102,21 +98,23 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
     qp.set(0, "lbu", vlo.data());
     qp.set(0, "ubu", vhi.data());
     auto& order = qp.order;
-    order.resize(rows.size());
-    std::iota(order.begin(), order.end(), 0);
-
-    for (auto& r : rows)
-        if (!r.gradient.allFinite() || !std::isfinite(r.lower) ||
-            !std::isfinite(r.clearance_margin))
-            return result;
-    // A row satisfied throughout the velocity box needs no solver slot. This
-    // also handles rigid pairs with an identically zero distance derivative.
-    std::erase_if(order, [&](auto i) {
+    order.clear();
+    order.reserve(rows.size());
+    for (size_t i = 0; i < rows.size(); ++i) {
         const auto& row = rows[i];
-        double worst =
-            row.gradient.cwiseProduct(vlo).cwiseMin(row.gradient.cwiseProduct(vhi)).sum();
-        return worst >= row.lower - 1e-12;
-    });
+        if (!row.gradient.allFinite() || !std::isfinite(row.lower) ||
+            !std::isfinite(row.clearance_margin))
+            return result;
+        const JointVector at_lo = row.gradient.cwiseProduct(vlo);
+        const JointVector at_hi = row.gradient.cwiseProduct(vhi);
+        // No slot is needed if the whole velocity box satisfies the row.
+        if (at_lo.cwiseMin(at_hi).sum() >= row.lower - 1e-12)
+            continue;
+        // If even its best corner violates the row, freeze before factorization.
+        if (at_lo.cwiseMax(at_hi).sum() < row.lower - tolerance)
+            return result;
+        order.push_back(i);
+    }
     const size_t used = std::min<size_t>(slots, order.size());
     std::partial_sort(order.begin(), order.begin() + used, order.end(), [&](auto a, auto b) {
         return rows[a].clearance_margin < rows[b].clearance_margin;
