@@ -2,6 +2,9 @@
 #include <iostream>
 #include <numbers>
 #include <random>
+#ifdef __APPLE__
+#include <pthread/qos.h>
+#endif
 using namespace panthera;
 using panthera::detail::ControlLaw;
 void check(bool value, const char* msg) {
@@ -176,9 +179,15 @@ void check_braking_trajectories() {
         for (auto& t : targets)
             t.joint = goal;
         for (int k = 0; k < 3000; ++k) {
+            const auto begin = HostClock::now();
             law.step(q, targets);
-            check(!law.state.frozen && law.state.hard_margin >= 0.,
-                  "joint trajectory froze or penetrated");
+            if (law.state.frozen || law.state.hard_margin < 0.) {
+                const std::chrono::duration<double, std::micro> elapsed = HostClock::now() - begin;
+                std::cerr << "Goal " << goal.transpose() << ", tick " << k << ", step "
+                          << elapsed.count() << " us, solver " << law.state.qp_time.count() / 1000.
+                          << " us, hard margin " << law.state.hard_margin << " m\n";
+                throw std::runtime_error("joint trajectory froze or penetrated");
+            }
             q = law.state.reference;
             times.push_back(law.state.qp_time.count() / 1000.);
         }
@@ -244,6 +253,11 @@ void check_braking_trajectories() {
     }
 }
 int main() try {
+#ifdef __APPLE__
+    // Exercise the 2 ms deadline with a latency-sensitive test thread on macOS CI.
+    check(pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) == 0,
+          "unable to set test thread QoS");
+#endif
     ControlConfig stage2;
     stage2.tracking_stop_rad = .10;
     ControlLaw guarded(stage2);
