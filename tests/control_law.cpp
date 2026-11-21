@@ -3,8 +3,10 @@
 #include <numbers>
 #include <random>
 #ifdef __APPLE__
-#include <pthread/qos.h>
-#include <thread>
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_policy.h>
+#include <pthread.h>
 #include <time.h>
 #endif
 using namespace panthera;
@@ -13,12 +15,24 @@ void check(bool value, const char* msg) {
     if (!value)
         throw std::runtime_error(msg);
 }
+#ifdef __APPLE__
+// Mach expresses both the scheduling period and the wakeup deadline in absolute ticks.
+uint32_t servo_period_ticks() {
+    static const auto ticks = [] {
+        mach_timebase_info_data_t base{};
+        check(mach_timebase_info(&base) == KERN_SUCCESS, "Mach timebase unavailable");
+        return static_cast<uint32_t>(2000000ULL * base.denom / base.numer);
+    }();
+    return ticks;
+}
+#endif
 // Offline trajectories run open-loop as fast as possible. On the virtual macOS
 // runner use the servo cadence for cases that exercise its real wall deadline.
 void trajectory_step(ControlLaw& law, const JointVector& measured,
                      const std::array<ArmTarget, 2>& targets, int tick) {
     const auto begin = HostClock::now();
 #ifdef __APPLE__
+    const auto wakeup = mach_absolute_time() + servo_period_ticks();
     const auto cpu_begin = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
 #endif
     law.step(measured, targets);
@@ -36,7 +50,7 @@ void trajectory_step(ControlLaw& law, const JointVector& measured,
         throw std::runtime_error("control trajectory froze");
     }
 #ifdef __APPLE__
-    std::this_thread::sleep_until(begin + std::chrono::milliseconds(2));
+    mach_wait_until(wakeup);
 #endif
 }
 void check_j2_takeover() {
@@ -210,8 +224,9 @@ void check_braking_trajectories() {
     track(ready, .004);
     track(Six::Zero(), 2 * std::numbers::pi / 180.);
     std::sort(times.begin(), times.end());
-    check(times[times.size() * 99 / 100] < 100., "round trip QP p99 exceeded 100 us");
-    std::cout << "Round trip p99 " << times[times.size() * 99 / 100] << " us\n";
+    const double p99 = times[times.size() * 99 / 100];
+    std::cout << "Round trip p99 " << p99 << " us\n";
+    check(p99 < 100., "round trip QP p99 exceeded 100 us");
 
     // Recorded measured pose at tick 679 and the preceding emitted state.
     JointVector ref, previous;
@@ -266,9 +281,13 @@ void check_braking_trajectories() {
 }
 int main() try {
 #ifdef __APPLE__
-    // Exercise the 2 ms deadline with a latency-sensitive test thread on macOS CI.
-    check(pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) == 0,
-          "unable to set test thread QoS");
+    const auto period = servo_period_ticks();
+    // Request up to 0.5 ms of computation within each 2 ms test cycle.
+    thread_time_constraint_policy_data_t policy{period, period / 4, period, TRUE};
+    check(thread_policy_set(pthread_mach_thread_np(pthread_self()), THREAD_TIME_CONSTRAINT_POLICY,
+                            reinterpret_cast<thread_policy_t>(&policy),
+                            THREAD_TIME_CONSTRAINT_POLICY_COUNT) == KERN_SUCCESS,
+          "unable to schedule macOS servo timing regression");
 #endif
     ControlConfig stage2;
     stage2.tracking_stop_rad = .10;
