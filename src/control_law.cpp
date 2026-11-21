@@ -72,10 +72,6 @@ void ControlLaw::reset(const JointVector& q) {
     state = {};
     observe(q);
     state.reference = nominal_ = q;
-    startup_pairs_.clear();
-    for (const auto& r : current_.rows)
-        if (r.same_arm && r.clearance_margin < 0)
-            startup_pairs_.push_back(r.pair);
     interpolated_ = state.tcp;
     previous_mode_.fill(TargetType::joint);
 }
@@ -93,13 +89,14 @@ void ControlLaw::step(const JointVector& measured, const std::array<ArmTarget, 2
     const double regularization = config_.regularization, smoothing = config_.smoothing,
                  posture = config_.posture_weight;
     JointMatrix h = (regularization + smoothing + posture) * JointMatrix::Identity();
-    JointVector linear = -smoothing * state.velocity - posture * (nominal_ - measured);
+    JointVector linear = -smoothing * state.velocity - posture * (nominal_ - state.reference);
     for (size_t s = 0; s < 2; ++s) {
         const int index = 6 * s;
         auto& t = targets[s];
         if (t.type == TargetType::joint) {
             h.block<6, 6>(index, index).diagonal().array() += 1;
-            linear.segment<6>(index) -= config_.joint_gain * (t.joint - measured.segment<6>(index));
+            linear.segment<6>(index) -=
+                config_.joint_gain * (t.joint - state.reference.segment<6>(index));
         } else {
             Six v = t.twist;
             if (t.type == TargetType::pose) {
@@ -123,14 +120,6 @@ void ControlLaw::step(const JointVector& measured, const std::array<ArmTarget, 2
         }
         previous_mode_[s] = t.type;
     }
-    std::erase_if(startup_pairs_, [&](int pair) {
-        for (auto& row : current_.rows)
-            if (row.pair == pair && row.clearance_margin < 0) {
-                row.lower = 0;
-                return false;
-            }
-        return true;
-    });
     // Below nominal zero the takeover reference may stay put or rise. The
     // previous reference is the floor, even if the measured arm sags farther.
     MotionBounds step_bounds = config_.joints;

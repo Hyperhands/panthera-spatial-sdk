@@ -17,7 +17,6 @@ class ControlLaw {
     JointVector nominal_, measured_lower_;
     CollisionState current_, candidate_;
     ControlConfig config_;
-    std::vector<int> startup_pairs_;
     MotionQp qp_;
 };
 } // namespace panthera::detail
