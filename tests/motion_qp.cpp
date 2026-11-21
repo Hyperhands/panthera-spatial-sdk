@@ -1,5 +1,6 @@
 #include "panthera/motion_qp.hpp"
 #include <algorithm>
+#include <array>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -8,8 +9,46 @@ void check(bool value, const char* msg) {
     if (!value)
         throw std::runtime_error(msg);
 }
+void check_offset_speed_boxes(MotionQp& qp) {
+    const JointVector zero = JointVector::Zero(), one = JointVector::Ones();
+    MotionBounds bounds{-2 * one, 2 * one, .25 * one, 4 * one, .05 * one};
+    const JointMatrix h = 1.00111 * JointMatrix::Identity();
+    // Replay ticks 2520 and 2546. The left J3 saturates while the right J3 optimum moves inside its
+    // speed box.
+    auto lift = [&](double left, double right, double goal_left, double goal_right) {
+        JointVector previous = zero, desired = zero;
+        previous[2] = left;
+        previous[8] = right;
+        desired[2] = goal_left;
+        desired[8] = goal_right;
+        const auto result = qp.solve(zero, zero, previous, h, -h * desired, bounds, {});
+        JointVector expected = desired;
+        expected[2] = std::min(.25, left + .008);
+        check(result.success && (result.velocity - expected).lpNorm<Eigen::Infinity>() < 1e-6,
+              "offset J3 speed boxes on ready lift");
+    };
+    lift(.25, .248182845, .340713058, .244214505);
+    lift(.199999989, .199999756, .299109188, .202612471);
+
+    bounds.max_speed.setConstant(.8);
+    const JointVector normal = JointVector::Unit(2) - JointVector::Unit(8);
+    const std::array<CollisionRow, 1> rows{{{normal, 0., 0.}}};
+    for (int k = -16; k <= 16; ++k) {
+        JointVector previous = zero;
+        previous[2] = previous[8] = k * .05;
+        JointVector expected = previous;
+        expected[2] = expected[8] = std::clamp(previous[2], -.796, .796);
+        // The projection onto u[left J3] >= u[right J3] is exactly expected.
+        const JointVector desired = expected - .04 * normal;
+        const auto result = qp.solve(zero, zero, previous, h, -h * desired, bounds, rows);
+        check(result.success && (result.velocity - expected).lpNorm<Eigen::Infinity>() < 1e-6,
+              "active collision row in offset speed box");
+    }
+}
+
 int main() try {
     MotionQp qp;
+    check_offset_speed_boxes(qp);
     auto z = JointVector::Zero().eval(), one = JointVector::Ones().eval();
     MotionBounds bounds{-one, one, one, 1000 * one, .05 * one};
     auto q = z;

@@ -38,8 +38,12 @@ struct MotionQp::Impl {
         out = ocp_qp_out_create_from_xcond_dims(dims);
         opts =
             static_cast<ocp_qp_xcond_solver_opts*>(ocp_qp_xcond_solver_opts_create(config, dims));
-        int warm = 1;
+        // Avoid HPIPM's heuristic slack initialization for narrow, offset speed boxes.
+        // Use symmetric slack/multiplier initialization and separate primal/dual step lengths.
+        int warm = 0, t0_init = 0, split_step = 1;
         ocp_qp_xcond_solver_opts_set(config, opts, "warm_start", &warm);
+        ocp_qp_xcond_solver_opts_set(config, opts, "t0_init", &t0_init);
+        ocp_qp_xcond_solver_opts_set(config, opts, "split_step", &split_step);
         solver = ocp_qp_create(config, dims, opts);
         JointMatrix integrator = control_dt * JointMatrix::Identity();
         std::array<int, 12> indices;
