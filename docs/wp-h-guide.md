@@ -28,7 +28,7 @@
 
 ## Stage 0：固件刷写与回滚验证（host-control）
 
-1. 分别连接左板（node11）和右板（node12）调试探针，查出各自序列号 `<LEFT_PROBE>`、`<RIGHT_PROBE>` 和 MCXN947 CMSIS pack 路径 `<PACK>`。
+1. 沿现场机械臂的接线核对左右板，记录各自的完整 MCU-Link 序列号及 MCXN947 CMSIS pack 路径 `<PACK>`。2026-11-21 核对的这套双臂，左臂探针尾号为 `ZEBZ`（`left.bin`，node11），右臂为 `2D5A`（`right.bin`，node12）。下列命令中的 `<LEFT_PROBE>` 和 `<RIGHT_PROBE>` 均填完整序列号。
 2. 逐板刷写（工具会自动备份原固件、全字节回读校验并记录 JSON 证据）：
    ```bash
    python3 firmware/tools/flash-dual.py left  --probe <LEFT_PROBE> --pack <PACK> --backup-dir validation/$(date +%Y%m%d)/flash
