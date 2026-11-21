@@ -35,7 +35,8 @@ def run(exe, mode):
                             if mode == "fault":
                                 b.arm["fault_code_raw"][2] = 1
                     if injected and mode == "lag" and i == 1 and b.active:
-                        b.arm["q_rad"][0] = b.mit[0] + 0.07
+                        # Outside the 0.08 rad lead window, below the 0.16 rad stop.
+                        b.arm["q_rad"][0] = b.mit[0] + 0.10
                     if injected and mode == "uplink" and b.mit and b.mit[1::5] == [0.0] * 6:
                         current = b.mit[::5]
                         if holds[i] is None:

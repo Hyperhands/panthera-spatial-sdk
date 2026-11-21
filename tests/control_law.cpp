@@ -124,7 +124,48 @@ void check_field_hold() {
             }
         }
 }
+void check_delayed_joint_feedback() {
+    const ControlConfig cfg;
+    ControlLaw law(cfg);
+    JointVector start;
+    start << 0, 1, 1.3, -.5, 0, 0, 0, 1, 1.3, -.5, 0, 0;
+    law.reset(start);
+    std::array<ArmTarget, 2> targets{};
+    for (int side = 0; side < 2; ++side) {
+        targets[side].joint = start.segment<6>(6 * side);
+        targets[side].joint[3] += side ? -.4 : .4;
+    }
+    JointVector measured = start, previous = JointVector::Zero();
+    double peak_tracking_speed = 0.;
+    for (int k = 0; k < 750; ++k) {
+        // Delay motion for 300 ms, with one encoder count of jitter on each wrist.
+        if (k < 150) {
+            measured[3] = start[3] + (k % 2 ? .0001 : -.0001);
+            measured[9] = start[9] - (k % 2 ? .0001 : -.0001);
+        } else {
+            measured = law.state.reference;
+        }
+        law.step(measured, targets);
+        check(!law.state.frozen, "delayed feedback froze joint motion");
+        check(((law.state.reference - measured).array().abs() <= cfg.joints.max_lead.array() + 1e-7)
+                  .all(),
+              "joint reference exceeded lead window");
+        check((law.state.velocity - previous).cwiseAbs().maxCoeff() <= 8. * control_dt + 1e-7,
+              "joint acceleration exceeded 8 rad/s^2");
+        check(law.state.velocity.cwiseAbs().maxCoeff() <= 1. + 1e-7,
+              "joint speed exceeded 1 rad/s");
+        if (k >= 150)
+            peak_tracking_speed = std::max(peak_tracking_speed,
+                                           std::min(law.state.velocity[3], -law.state.velocity[9]));
+        previous = law.state.velocity;
+    }
+    check(peak_tracking_speed > .99, "joint speed did not reach the new cap with feedback");
+    for (int side = 0; side < 2; ++side)
+        check((law.state.reference.segment<6>(6 * side) - targets[side].joint).norm() < .001,
+              "joint motion did not resume after delayed feedback");
+}
 int main() try {
+    check_delayed_joint_feedback();
     check_field_hold();
     check_j2_takeover();
     ControlLaw c;
@@ -184,7 +225,7 @@ int main() try {
     // Construct a measured/reference lag which makes the lead and acceleration bounds incompatible.
     q << ready, ready;
     c.reset(q);
-    q[0] += .07;
+    q[0] += default_bounds().max_lead[0] + .02;
     for (int k = 0; k < 4; ++k) {
         c.step(q, targets);
         check(c.state.frozen && c.state.velocity.isZero(), "failed QP did not hold");

@@ -632,7 +632,10 @@ def main(example=None):
                 telemetry(addresses, pair, record, args.real)
             else:
                 config = sdk.ControlConfig()
-                config.joints.max_speed = np.full(12, 0.25)
+                if stage != STAGES[1]:
+                    config.joints.max_speed = np.full(12, 0.25)
+                    config.joints.max_acceleration = np.full(12, 4.0)
+                    config.joints.max_lead = np.full(12, 0.05)
                 config.translation_speed = 0.05
                 if stage in (STAGES[4], STAGES[5], "approach_stop"):
                     config.pose_gain = 2.0

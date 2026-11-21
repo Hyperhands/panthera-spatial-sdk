@@ -91,9 +91,9 @@ MotionBounds default_bounds() {
         b.lower[i] = lower[i % 6];
         b.upper[i] = upper[i % 6];
     }
-    b.max_speed.setConstant(.8);
-    b.max_acceleration.setConstant(4.);
-    b.max_lead.setConstant(.05);
+    b.max_speed.setConstant(1.);
+    b.max_acceleration.setConstant(8.);
+    b.max_lead.setConstant(.08);
     return b;
 }
 void collision_state(const std::array<ArmGeometry, 2>& arms, CollisionState& state) {

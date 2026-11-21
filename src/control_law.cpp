@@ -95,8 +95,21 @@ void ControlLaw::step(const JointVector& measured, const std::array<ArmTarget, 2
         auto& t = targets[s];
         if (t.type == TargetType::joint) {
             h.block<6, 6>(index, index).diagonal().array() += 1;
-            linear.segment<6>(index) -=
-                config_.joint_gain * (t.joint - state.reference.segment<6>(index));
+            for (int j = 0; j < 6; ++j) {
+                const int axis = index + j;
+                const double reference = state.reference[axis];
+                const double desired = config_.joint_gain * (t.joint[j] - reference);
+                const double lead = reference - measured[axis];
+                // Keep 5% of the lead window for feedback jitter at rest.
+                const double room =
+                    .95 * config_.joints.max_lead[axis] - (desired < 0 ? -lead : lead);
+                // Budget one sample of travel plus v²/(2a) to brake at the tracking boundary.
+                // Shape only the joint objective so collision avoidance can still override it.
+                const double a = config_.joints.max_acceleration[axis];
+                const double dv = a * control_dt;
+                const double speed = std::sqrt(dv * dv + 2 * a * std::max(0., room)) - dv;
+                linear[axis] -= std::copysign(std::min(std::abs(desired), speed), desired);
+            }
         } else {
             Six v = t.twist;
             if (t.type == TargetType::pose) {
