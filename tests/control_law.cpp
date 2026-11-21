@@ -24,11 +24,13 @@ void trajectory_step(ControlLaw& law, const JointVector& measured,
     law.step(measured, targets);
     if (law.state.frozen) {
         const std::chrono::duration<double, std::micro> elapsed = HostClock::now() - begin;
+#ifdef __APPLE__
+        const auto cpu_elapsed = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu_begin;
+#endif
         std::cerr << "Frozen at tick " << tick << ", wall " << elapsed.count() << " us, solver "
                   << law.state.qp_time.count() / 1000. << " us";
 #ifdef __APPLE__
-        std::cerr << ", thread CPU "
-                  << (clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu_begin) / 1000. << " us";
+        std::cerr << ", thread CPU " << cpu_elapsed / 1000. << " us";
 #endif
         std::cerr << "\n";
         throw std::runtime_error("control trajectory froze");
