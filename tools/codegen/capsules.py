@@ -191,6 +191,65 @@ def segment_distance(a, b, c, d):
     return min(candidates)
 
 
+def folded_clearance_samples(model, urdf):
+    geom = pin.buildGeomFromUrdf(model, str(urdf), pin.COLLISION, package_dirs=[str(PKG.parent)])
+    frames = {}
+    indices = {}
+    for side in SIDES:
+        frames[side] = [model.getFrameId(f"{side}_link{k}") for k in (2, 5)]
+        objects = [
+            next(i for i, o in enumerate(geom.geometryObjects) if o.parentFrame == frame)
+            for frame in frames[side]
+        ]
+        geom.addCollisionPair(pin.CollisionPair(*objects))
+        indices[side] = [
+            model.joints[model.getJointId(f"{side}_joint{k}")].idx_q for k in (3, 4, 5)
+        ]
+    data = model.createData()
+    geometry_data = geom.createData()
+    samples = {s: [] for s in SIDES}
+    q = pin.neutral(model)
+    for angles in itertools.product(
+        (0.5, 1, 1.5, 2, 3), (-2.5, -2, -1.5, -1, -0.5, 0), (-1.5, 0, 1.5)
+    ):
+        for side in SIDES:
+            q[indices[side]] = np.deg2rad(angles)
+        pin.framesForwardKinematics(model, data, q)
+        pin.updateGeometryPlacements(model, data, geom, geometry_data)
+        for k, side in enumerate(SIDES):
+            distance = pin.computeDistance(geom, geometry_data, k).min_distance
+            if distance >= 0.0005:
+                ta, tb = (data.oMf[f].copy() for f in frames[side])
+                samples[side].append((ta, tb, distance))
+    return samples
+
+
+def supplement_folded_proofs(a, b, proofs, samples):
+    for ta, tb, distance in samples:
+        raw = (
+            segment_distance(
+                *(t.act(np.asarray(c[key])) for c, t in ((a, ta), (b, tb)) for key in ("a", "b"))
+            )
+            - a["r"]
+            - b["r"]
+        )
+        gap = max([raw] + [clearance(group, ta, tb) for group in proofs])
+        if gap < max(0.0002, 0.35 * distance):
+            extra = certify(
+                a["points"],
+                b["points"],
+                ta,
+                tb,
+                a["step_margin"],
+                b["step_margin"],
+                a["triangles"],
+                b["triangles"],
+            )
+            if clearance(extra, ta, tb) > gap + 0.0001:
+                proofs.append(extra)
+    proofs.sort(key=len)
+
+
 def run():
     caps = sum((make(s) for s in SIDES), [])
     srdf = ET.parse(PKG / "srdf/panthera_dual_a2l1.srdf")
@@ -203,7 +262,8 @@ def run():
         for i, a in enumerate(caps[:j])
         if any(x != y and frozenset([x, y]) not in disabled for x in a["links"] for y in b["links"])
     ]
-    m = pin.buildModelFromUrdf(str(PKG / "urdf/panthera_dual_a2l1.urdf"))
+    urdf = PKG / "urdf/panthera_dual_a2l1.urdf"
+    m = pin.buildModelFromUrdf(str(urdf))
     data = m.createData()
     dist = {}
     poses = {}
@@ -236,12 +296,7 @@ def run():
             segment_distance(*segments[i], *segments[j]) - caps[i]["r"] - caps[j]["r"]
             for i, j in pairs
         ]
-    # An additional mesh witness at the measured left-arm home pose improves
-    # the bound without using this pose to set (or relax) any threshold.
-    q = pin.neutral(m)
-    for j, angle in enumerate([-0.406, -0.055, 0.857, -1.203, -0.352, 0.566], 1):
-        q[m.joints[m.getJointId(f"left_joint{j}")].idx_q] = np.deg2rad(angle)
-    pin.framesForwardKinematics(m, data, q)
+    folded_samples = folded_clearance_samples(m, urdf)
     thresholds = []
     for k, (i, j) in enumerate(pairs):
         a, b = caps[i], caps[j]
@@ -285,18 +340,9 @@ def run():
                 proofs=proofs,
             )
         )
-        if a["links"] == ["left_link2"] and b["links"] == ["left_link5"]:
-            ta, tb = (data.oMf[m.getFrameId(c["links"][0])] for c in (a, b))
-            raw = segment_distance(
-                *(t.act(np.asarray(c[key])) for c, t in ((a, ta), (b, tb)) for key in ("a", "b"))
-            ) - a["r"] - b["r"]
-            gap = max([raw] + [clearance(group, ta, tb) for group in proofs])
-            if gap <= hard:
-                extra = certify(a["points"], b["points"], ta, tb, a["step_margin"],
-                                b["step_margin"], a["triangles"], b["triangles"])
-                if clearance(extra, ta, tb) <= hard:
-                    raise ValueError("Insufficient link2/link5 clearance at measured home")
-                proofs.append(extra)
+        side = SIDES[a["side"]]
+        if a["links"] == [f"{side}_link2"] and b["links"] == [f"{side}_link5"]:
+            supplement_folded_proofs(a, b, proofs, folded_samples[side])
     for c in caps:
         del c["points"], c["triangles"]
     emit_tables(caps, pairs, thresholds)
