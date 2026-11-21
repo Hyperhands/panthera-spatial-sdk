@@ -19,6 +19,7 @@ from loopback import BoardPair
 
 SIDES = (sdk.Side.left, sdk.Side.right)
 STAGE2_ARRIVAL_TOLERANCE = np.deg2rad(5.0)
+FIELD_ANGULAR_TOLERANCE = np.deg2rad(2.0)
 READY = np.array([0.0, 1.0, 1.3, -0.5, 0.0, 0.0])
 BRANCH = np.array([0, np.pi / 2, 2.886410263, 0.255182391, 0, 0])
 STAGES = (
@@ -346,22 +347,37 @@ class Motion:
 
         self.wait(held, seconds + 1, "zero hold")
 
-    def joints(self, goals, tolerance=0.004):
+    def joints(self, goals, tolerance=None, *, axis=None, from_goals=None):
+        if tolerance is None:
+            tolerance = FIELD_ANGULAR_TOLERANCE if self.real else 0.004
+        start = self.sample().measured.copy() if from_goals is not None else None
         for side, goal in zip(SIDES, goals):
             self.arm.set_joint_target(side, goal)
         target = np.concatenate(goals)
-        return self.wait(
-            lambda s: np.max(np.abs(s.measured - target)) <= tolerance,
-            20,
-            "measured joint targets",
-        )
+        previous = None if from_goals is None else np.concatenate(from_goals)
+
+        def reached(s):
+            error = np.abs(s.measured - target)
+            peak = np.max(error) if axis is None else error[axis]
+            if not peak <= tolerance:
+                return False
+            if previous is not None:
+                # The soak targets overlap at ±2°. Check that each J2 actually reverses.
+                moving = target != previous
+                travel = s.measured[moving] - start[moving]
+                return np.all(travel * (target[moving] - previous[moving]) > 0)
+            return True
+
+        return self.wait(reached, 20, "measured joint targets")
 
     def hands(self, side, q):
         self.arm.set_hand_target(side, q, 1000)
 
+        tolerance = FIELD_ANGULAR_TOLERANCE if self.real else 0.025
+
         def reached(s):
             angles = s.boards[SIDES.index(side)].active_hand_angles(100000)
-            return angles is not None and np.max(np.abs(q - angles)) < 0.025
+            return angles is not None and np.max(np.abs(q - angles)) <= tolerance
 
         self.wait(reached, 4, "fresh hand feedback")
 
@@ -384,6 +400,10 @@ class Motion:
             for p in backward:
                 p[0, 3] -= 0.05
             poses.extend([backward, initial])
+        # For rotations separated by theta, ||R1 - R2||_F = 2 sqrt(2) sin(theta / 2).
+        rotation_tolerance = (
+            2 * np.sqrt(2) * np.sin(FIELD_ANGULAR_TOLERANCE / 2) if self.real else 0.026
+        )
         for targets in poses:
             for side, target in zip(SIDES, targets):
                 self.arm.set_pose_target(side, target)
@@ -391,7 +411,7 @@ class Motion:
             def reached(s):
                 return all(
                     np.linalg.norm(p[:3, 3] - g[:3, 3]) < 0.003
-                    and np.linalg.norm(p[:3, :3] - g[:3, :3]) < 0.026
+                    and np.linalg.norm(p[:3, :3] - g[:3, :3]) <= rotation_tolerance
                     for p, g in zip(s.tcp, targets)
                 )
 
@@ -499,14 +519,14 @@ def single_joint(m):
             for delta in (0.09, -0.09) if m.real else (0.025,):
                 goals = [READY.copy(), READY.copy()]
                 goals[i][j] += delta
-                m.joints(goals)
-                m.joints([READY, READY])
+                m.joints(goals, axis=6 * i + j)
+                m.joints([READY, READY], axis=6 * i + j)
             if m.real and j == 4:
                 for sign in (-1, 1):
                     goals = [READY.copy(), READY.copy()]
                     goals[i][j] = sign * np.deg2rad(60)
-                    m.joints(goals)
-                    m.joints([READY, READY])
+                    m.joints(goals, axis=6 * i + j)
+                    m.joints([READY, READY], axis=6 * i + j)
 
 
 def hand_check(m, endpoints=False):
@@ -587,11 +607,11 @@ def soak(m):
         goals = [READY.copy(), READY.copy()]
         for q in goals:
             q[1] += direction * 0.04
-        m.joints(goals)
+        m.joints(goals, from_goals=[READY, READY] if m.real else None)
         for side in SIDES:
             m.hands(side, np.full(6, 0.08 if direction > 0 else 0))
         if m.real:
-            m.joints([READY, READY])
+            m.joints([READY, READY], from_goals=goals)
             m.approach()
             m.joints([READY, READY])
         direction *= -1
@@ -623,6 +643,8 @@ def main(example=None):
     if args.real and stage == "expert_mit" and not args.i_understand_no_safety:
         p.error("Real expert mode requires --i-understand-no-safety")
     record = Record(args.output, stage, args.real)
+    if args.real and stage in (*STAGES[2:], "cartesian_move", "approach_stop", "hand_passthrough"):
+        record.summary["angular_arrival_tolerance_deg"] = float(np.rad2deg(FIELD_ANGULAR_TOLERANCE))
     try:
         with ExitStack() as stack:
             pair = None
