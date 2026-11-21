@@ -1,5 +1,6 @@
 #include "control_law.hpp"
 #include <cmath>
+#include <numbers>
 #include <stdexcept>
 namespace panthera::detail {
 namespace {
@@ -37,6 +38,10 @@ ControlLaw::ControlLaw(ControlConfig config) : config_(std::move(config)) {
         (b.max_acceleration.array() <= 0).any() || (b.max_lead.array() <= 0).any() ||
         !config_.task_weights.allFinite() || (config_.task_weights.array() < 0).any())
         throw std::invalid_argument("Invalid joint limits or task weights");
+    measured_lower_ = b.lower.array() - 1e-5;
+    for (int j : {1, 7})
+        if (b.lower[j] == 0.)
+            measured_lower_[j] = -std::numbers::pi / 180.;
     for (auto gain : {config_.pose_gain, config_.joint_gain, config_.regularization,
                       config_.translation_speed, config_.rotation_speed})
         if (!std::isfinite(gain) || gain <= 0)
@@ -48,7 +53,7 @@ ControlLaw::ControlLaw(ControlConfig config) : config_(std::move(config)) {
 void ControlLaw::observe(const JointVector& q) {
     if (!q.allFinite())
         throw std::runtime_error("Nonfinite joint feedback");
-    if ((q.array() < config_.joints.lower.array() - 1e-5).any() ||
+    if ((q.array() < measured_lower_.array()).any() ||
         (q.array() > config_.joints.upper.array() + 1e-5).any())
         throw std::runtime_error("Measured joint outside configured limits");
     state.measured = q;
@@ -126,11 +131,17 @@ void ControlLaw::step(const JointVector& measured, const std::array<ArmTarget, 2
             }
         return true;
     });
+    // Below nominal zero the takeover reference may stay put or rise. The
+    // previous reference is the floor, even if the measured arm sags farther.
+    MotionBounds step_bounds = config_.joints;
+    for (int j : {1, 7})
+        if (step_bounds.lower[j] == 0.)
+            step_bounds.lower[j] = std::min(0., state.reference[j]);
     QpStep step;
     state.qp_time = {};
     int remaining_solves = 3;
     for (int pass = 0; pass < 2 && remaining_solves > 0; ++pass) {
-        step = qp_.solve(measured, state.reference, state.velocity, h, linear, config_.joints,
+        step = qp_.solve(measured, state.reference, state.velocity, h, linear, step_bounds,
                          current_.rows, remaining_solves);
         remaining_solves -= step.solves;
         state.qp_time += step.solve_time;

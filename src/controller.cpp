@@ -234,6 +234,8 @@ void DualArm::setJointTarget(Side s, const Six& q) {
     ArmTarget g;
     g.type = TargetType::joint;
     g.joint = q;
+    // Only the internally seeded hold target can be below nominal J2 zero.
+    g.joint[1] = std::max(0., q[1]);
     i.targets[index(s)].store(g);
 }
 void DualArm::setHandTarget(Side s, const Joints& q, std::uint16_t duration) {

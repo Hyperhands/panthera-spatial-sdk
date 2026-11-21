@@ -236,6 +236,12 @@ def run():
             segment_distance(*segments[i], *segments[j]) - caps[i]["r"] - caps[j]["r"]
             for i, j in pairs
         ]
+    # An additional mesh witness at the measured left-arm home pose improves
+    # the bound without using this pose to set (or relax) any threshold.
+    q = pin.neutral(m)
+    for j, angle in enumerate([-0.406, -0.055, 0.857, -1.203, -0.352, 0.566], 1):
+        q[m.joints[m.getJointId(f"left_joint{j}")].idx_q] = np.deg2rad(angle)
+    pin.framesForwardKinematics(m, data, q)
     thresholds = []
     for k, (i, j) in enumerate(pairs):
         a, b = caps[i], caps[j]
@@ -279,6 +285,18 @@ def run():
                 proofs=proofs,
             )
         )
+        if a["links"] == ["left_link2"] and b["links"] == ["left_link5"]:
+            ta, tb = (data.oMf[m.getFrameId(c["links"][0])] for c in (a, b))
+            raw = segment_distance(
+                *(t.act(np.asarray(c[key])) for c, t in ((a, ta), (b, tb)) for key in ("a", "b"))
+            ) - a["r"] - b["r"]
+            gap = max([raw] + [clearance(group, ta, tb) for group in proofs])
+            if gap <= hard:
+                extra = certify(a["points"], b["points"], ta, tb, a["step_margin"],
+                                b["step_margin"], a["triangles"], b["triangles"])
+                if clearance(extra, ta, tb) <= hard:
+                    raise ValueError("Insufficient link2/link5 clearance at measured home")
+                proofs.append(extra)
     for c in caps:
         del c["points"], c["triangles"]
     emit_tables(caps, pairs, thresholds)

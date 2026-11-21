@@ -1,5 +1,6 @@
 #include "control_law.hpp"
 #include <iostream>
+#include <numbers>
 #include <random>
 using namespace panthera;
 using panthera::detail::ControlLaw;
@@ -7,7 +8,64 @@ void check(bool value, const char* msg) {
     if (!value)
         throw std::runtime_error(msg);
 }
+void check_j2_takeover() {
+    constexpr double deg = std::numbers::pi / 180.;
+    JointVector field;
+    field << -.406, -.055, .857, -1.203, -.352, .566, -.291, -.022, 1.527, -.989, -.280, .478;
+    field *= deg;
+    ControlLaw law;
+    auto rejected = [](ControlLaw& controller, const JointVector& q) {
+        try {
+            controller.reset(q);
+        } catch (const std::runtime_error& e) {
+            return std::string(e.what()) == "Measured joint outside configured limits";
+        }
+        return false;
+    };
+    for (int j : {1, 7}) {
+        for (double angle : {-1., -.5, 0.}) {
+            JointVector q = field;
+            q[j] = angle * deg;
+            law.reset(q);
+            check(law.state.reference.isApprox(q), "takeover changed the measured pose");
+        }
+        JointVector q = field;
+        q[j] = -1.01 * deg;
+        check(rejected(law, q), "J2 below -1 degree accepted");
+        q = field;
+        q[j + 1] = -.05 * deg;
+        check(rejected(law, q), "J3 lower limit widened");
+        ControlConfig tighter;
+        tighter.joints.lower[j] = .5 * deg;
+        ControlLaw custom(tighter);
+        check(rejected(custom, field), "custom J2 limit widened");
+    }
+    JointVector q = field;
+    q[1] = -deg;
+    law.reset(q);
+    std::array<ArmTarget, 2> targets{};
+    for (int side = 0; side < 2; ++side)
+        targets[side].joint = q.segment<6>(6 * side);
+    const JointVector start = q;
+    for (int k = 0; k < 5000; ++k) {
+        law.step(q, targets);
+        q = law.state.reference;
+        check((q - start).lpNorm<Eigen::Infinity>() < .05 * deg, "hold drifted in 10 seconds");
+    }
+    for (auto& t : targets)
+        t.joint[1] = 2 * deg;
+    for (int k = 0; k < 1000; ++k) {
+        const auto previous = q;
+        law.step(q, targets);
+        q = law.state.reference;
+        for (int j : {1, 7})
+            check(q[j] >= std::min(0., previous[j]) - 1e-9,
+                  "negative J2 reference advanced outward");
+    }
+    check(q[1] > deg && q[7] > deg, "failed to return both J2 to normal range");
+}
 int main() try {
+    check_j2_takeover();
     ControlLaw c;
     std::vector<double> timings;
     JointVector q = JointVector::Zero();
