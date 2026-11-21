@@ -1,0 +1,225 @@
+{
+  "stage": "stage4-left-thumb_cmc-10-steps",
+  "run_mode": "real",
+  "human_checks": "pending_human_confirmation",
+  "can": {
+    "left": {
+      "samples": 240,
+      "warning_samples": 28,
+      "tx_error_peak": 22,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.19998450600542128,
+      "last_sample_nonzero": false,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    },
+    "right": {
+      "samples": 240,
+      "warning_samples": 34,
+      "tx_error_peak": 16,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.10001904099772219,
+      "last_sample_nonzero": true,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    }
+  },
+  "field_checks": {
+    "left_thumb_cmc_direction": "confirmed_by_operator",
+    "up_to_57_2_deg": "operator_reported_no_binding_or_contact",
+    "physical_endpoint": "pending_human_confirmation"
+  },
+  "channel": "thumb_cmc",
+  "side": "left",
+  "observations": [
+    {
+      "target_rad": 0.1,
+      "retried_missing_can_tx": true,
+      "measured_rad": [
+        0.0990000069141388,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 0.2,
+      "measured_rad": [
+        0.1990000158548355,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 0.30000000000000004,
+      "measured_rad": [
+        0.2990000247955322,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 0.4,
+      "retried_missing_can_tx": true,
+      "measured_rad": [
+        0.39900001883506775,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 0.5,
+      "retried_missing_can_tx": true,
+      "measured_rad": [
+        0.49900001287460327,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 0.6000000000000001,
+      "measured_rad": [
+        0.5990000367164612,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 0.7000000000000001,
+      "retried_missing_can_tx": true,
+      "measured_rad": [
+        0.6990000605583191,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 0.8,
+      "measured_rad": [
+        0.7990000247955322,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 0.9,
+      "retried_missing_can_tx": true,
+      "measured_rad": [
+        0.8990000486373901,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    },
+    {
+      "target_rad": 1.0,
+      "measured_rad": [
+        0.999000072479248,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 1,
+      "ack": 1,
+      "nack": 0
+    }
+  ],
+  "upper_rad": 2.0944,
+  "actual_duration_s": 24.625286022012006,
+  "automated_checks": "failed",
+  "error": "Timed out waiting for fresh hand feedback",
+  "field_sdk_commit": "a2c44f71962653bc7e93c851edcd043de7f15cf5",
+  "csv_sha256": "19b2303d63d1ce29492f7a7b8278518d30786709c639099dbf624fa9110b0cfe",
+  "post_run_telemetry": [
+    {
+      "owner": 2,
+      "mode": 2,
+      "hand_rad": [
+        0.0010000000474974513,
+        0.0,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026,
+        0.0020000000949949026
+      ],
+      "tx": 23,
+      "ack": 23,
+      "nack": 1,
+      "can_bus": 0,
+      "can_tx_failed": 0
+    },
+    {
+      "owner": 2,
+      "mode": 2,
+      "hand_rad": [
+        0.029000001028180122,
+        0.00800000037997961,
+        0.02200000174343586,
+        0.02200000174343586,
+        0.02200000174343586,
+        0.02200000174343586
+      ],
+      "tx": 0,
+      "ack": 0,
+      "nack": 0,
+      "can_bus": 0,
+      "can_tx_failed": 0
+    }
+  ]
+}
