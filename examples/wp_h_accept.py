@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "sim"))
 from loopback import BoardPair
 
 SIDES = (sdk.Side.left, sdk.Side.right)
-STAGE2_ZERO_TOLERANCE = np.deg2rad(5.0)
+STAGE2_ARRIVAL_TOLERANCE = np.deg2rad(5.0)
 READY = np.array([0.0, 1.0, 1.3, -0.5, 0.0, 0.0])
 BRANCH = np.array([0, np.pi / 2, 2.886410263, 0.255182391, 0, 0])
 STAGES = (
@@ -341,7 +341,7 @@ class Motion:
     def hold_zero(self, seconds):
         end = time.monotonic() + seconds
         def held(state):
-            require(np.max(np.abs(state.measured)) <= STAGE2_ZERO_TOLERANCE, "Outside zero hold window")
+            require(np.max(np.abs(state.measured)) <= STAGE2_ARRIVAL_TOLERANCE, "Outside zero hold window")
             return time.monotonic() >= end
 
         self.wait(held, seconds + 1, "zero hold")
@@ -430,18 +430,19 @@ class Motion:
 
 def takeover(m, pair):
     require(
-        np.max(np.abs(m.sample().measured)) <= STAGE2_ZERO_TOLERANCE,
+        np.max(np.abs(m.sample().measured)) <= STAGE2_ARRIVAL_TOLERANCE,
         "Start takeover check at zero",
     )
-    m.report.summary["zero_window_deg"] = float(np.rad2deg(STAGE2_ZERO_TOLERANCE))
+    m.report.summary["arrival_window_deg"] = float(np.rad2deg(STAGE2_ARRIVAL_TOLERANCE))
     m.hold_zero(10 if m.real else 0.1)
     goal = READY if m.real else np.array([0, 0.07, 0.07, 0, 0, 0])
-    m.joints([goal, goal])
+    # The short loopback lift is only 0.07 rad; verify that it actually moves.
+    tolerance = STAGE2_ARRIVAL_TOLERANCE if m.real else 0.004
+    m.joints([goal, goal], tolerance=tolerance)
     zero = np.zeros(6)
-    # The short loopback lift is only 0.07 rad; require a measured return there.
-    returned = m.joints([zero, zero], tolerance=STAGE2_ZERO_TOLERANCE if m.real else 0.004)
+    returned = m.joints([zero, zero], tolerance=tolerance)
     m.report.summary["return_zero_measured_rad"] = returned.measured.tolist()
-    m.joints([goal, goal])
+    m.joints([goal, goal], tolerance=tolerance)
     m.arm.soft_stop()
     m.arm.enable()
     if pair:
