@@ -15,6 +15,7 @@
   ctest --test-dir build/host --output-on-failure
   (cd firmware/images && sha256sum -c SHA256SUMS)
   ```
+- 共享 CI 验证控制正确性及超时后的冻结、停机。现场主机可单独用生产 SDK 运行无硬件测速：`cmake --build build/host --target servo_benchmark` 后执行 `build/host/servo_benchmark`，记录 6,000 拍往返的 QP p99。实际控制周期和丢拍率在 Stage 6 采集。
 - [ ] **固件镜像摘要核对**：
   - `left.bin` (node11 / `192.168.10.11`): `3694ed3bf0301815459c697ef6b5dfb4fb0fba0f81387dff6c8239f3d7b767d5`
   - `right.bin` (node12 / `192.168.10.12`): `339c4ecda6e8d57b827c6d81f2835060dfadd682328179ffa0d62e7ef8c7dbb8`

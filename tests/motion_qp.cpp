@@ -1,4 +1,5 @@
 #include "panthera/motion_qp.hpp"
+#include "servo_clock.hpp"
 #include <algorithm>
 #include <array>
 #include <iostream>
@@ -140,14 +141,11 @@ int main() try {
     auto result = qp.solve(z, z, z, h, lin, bounds, rows);
     check(result.success && result.solves == 2 && result.velocity[4] <= .1000001,
           "omitted closing pair");
-    std::vector<double> times;
-    for (int i = 0; i < 1000; ++i) {
-        result = qp.solve(z, z, z, h, lin, bounds, {});
-        if (i > 10)
-            times.push_back(result.solve_time.count() / 1000.);
-    }
-    std::sort(times.begin(), times.end());
-    std::cout << "HPIPM p99 " << times[times.size() * 99 / 100] << " us\n";
+    // The solver returns after its deadline. Reject its candidate even when feasible.
+    detail::ServoClock::advance_per_read = std::chrono::milliseconds(1);
+    auto late = qp.solve(z, z, z, h, lin, bounds, {});
+    check(!late.success && late.solves == 1 && late.position == z && late.velocity == z,
+          "late QP result was accepted");
     return 0;
 } catch (const std::exception& e) {
     std::cerr << e.what() << '\n';

@@ -1,57 +1,19 @@
 #include "control_law.hpp"
+#include "servo_clock.hpp"
 #include <iostream>
 #include <numbers>
 #include <random>
-#ifdef __APPLE__
-#include <mach/mach.h>
-#include <mach/mach_time.h>
-#include <mach/thread_policy.h>
-#include <pthread.h>
-#include <time.h>
-#endif
 using namespace panthera;
 using panthera::detail::ControlLaw;
 void check(bool value, const char* msg) {
     if (!value)
         throw std::runtime_error(msg);
 }
-#ifdef __APPLE__
-// Mach expresses both the scheduling period and the wakeup deadline in absolute ticks.
-uint32_t servo_period_ticks() {
-    static const auto ticks = [] {
-        mach_timebase_info_data_t base{};
-        check(mach_timebase_info(&base) == KERN_SUCCESS, "Mach timebase unavailable");
-        return static_cast<uint32_t>(2000000ULL * base.denom / base.numer);
-    }();
-    return ticks;
-}
-#endif
-// Offline trajectories run open-loop as fast as possible. On the virtual macOS
-// runner use the servo cadence for cases that exercise its real wall deadline.
 void trajectory_step(ControlLaw& law, const JointVector& measured,
                      const std::array<ArmTarget, 2>& targets, int tick) {
-    const auto begin = HostClock::now();
-#ifdef __APPLE__
-    const auto wakeup = mach_absolute_time() + servo_period_ticks();
-    const auto cpu_begin = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
-#endif
     law.step(measured, targets);
-    if (law.state.frozen) {
-        const std::chrono::duration<double, std::micro> elapsed = HostClock::now() - begin;
-#ifdef __APPLE__
-        const auto cpu_elapsed = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu_begin;
-#endif
-        std::cerr << "Frozen at tick " << tick << ", wall " << elapsed.count() << " us, solver "
-                  << law.state.qp_time.count() / 1000. << " us";
-#ifdef __APPLE__
-        std::cerr << ", thread CPU " << cpu_elapsed / 1000. << " us";
-#endif
-        std::cerr << "\n";
-        throw std::runtime_error("control trajectory froze");
-    }
-#ifdef __APPLE__
-    mach_wait_until(wakeup);
-#endif
+    if (law.state.frozen)
+        throw std::runtime_error("control trajectory froze at tick " + std::to_string(tick));
 }
 void check_j2_takeover() {
     constexpr double deg = std::numbers::pi / 180.;
@@ -200,7 +162,7 @@ void check_delayed_joint_feedback() {
         check((law.state.reference.segment<6>(6 * side) - targets[side].joint).norm() < .001,
               "joint motion did not resume after delayed feedback");
 }
-void check_braking_trajectories() {
+void check_braking_trajectories(bool benchmark = false) {
     ControlLaw law;
     JointVector q = JointVector::Zero();
     std::array<ArmTarget, 2> targets{};
@@ -215,7 +177,8 @@ void check_braking_trajectories() {
             trajectory_step(law, q, targets, k);
             check(law.state.hard_margin >= 0., "joint trajectory penetrated");
             q = law.state.reference;
-            times.push_back(law.state.qp_time.count() / 1000.);
+            if (benchmark)
+                times.push_back(law.state.qp_time.count() / 1000.);
         }
         for (int side = 0; side < 2; ++side)
             check((q.segment<6>(side * 6) - goal).lpNorm<Eigen::Infinity>() < tolerance,
@@ -223,10 +186,13 @@ void check_braking_trajectories() {
     };
     track(ready, .004);
     track(Six::Zero(), 2 * std::numbers::pi / 180.);
-    std::sort(times.begin(), times.end());
-    const double p99 = times[times.size() * 99 / 100];
-    std::cout << "Round trip p99 " << p99 << " us\n";
-    check(p99 < 100., "round trip QP p99 exceeded 100 us");
+    if (benchmark) {
+        std::sort(times.begin(), times.end());
+        const double p99 = times[times.size() * 99 / 100];
+        std::cout << "6000 steps, round trip QP p99 " << p99 << " us\n";
+        check(p99 < 100., "target machine round trip QP p99 exceeded 100 us");
+        return;
+    }
 
     // Recorded measured pose at tick 679 and the preceding emitted state.
     JointVector ref, previous;
@@ -280,14 +246,30 @@ void check_braking_trajectories() {
     }
 }
 int main() try {
-#ifdef __APPLE__
-    const auto period = servo_period_ticks();
-    // Request up to 0.5 ms of computation within each 2 ms test cycle.
-    thread_time_constraint_policy_data_t policy{period, period / 4, period, TRUE};
-    check(thread_policy_set(pthread_mach_thread_np(pthread_self()), THREAD_TIME_CONSTRAINT_POLICY,
-                            reinterpret_cast<thread_policy_t>(&policy),
-                            THREAD_TIME_CONSTRAINT_POLICY_COUNT) == KERN_SUCCESS,
-          "unable to schedule macOS servo timing regression");
+#ifndef PANTHERA_TEST_SERVO_CLOCK
+    check_braking_trajectories(true);
+    return 0;
+#else
+    // In an exact stationary hold the QP fits its own 2 ms budget, but the
+    // whole step expires by the candidate check. The reference must freeze.
+    ControlLaw expired;
+    const JointVector zero = JointVector::Zero();
+    expired.reset(zero);
+    detail::ServoClock::advance_per_read = std::chrono::milliseconds(1);
+    for (int k = 1; k < 5; ++k) {
+        expired.step(zero, {});
+        check(expired.state.frozen && expired.state.consecutive_failures == k &&
+                  expired.state.reference == zero && expired.state.velocity == zero,
+              "deadline overrun did not freeze the reference");
+    }
+    bool timed_out = false;
+    try {
+        expired.step(zero, {});
+    } catch (const std::runtime_error& e) {
+        timed_out = std::string(e.what()) == "Five consecutive QP failures";
+    }
+    check(timed_out, "repeated deadline overruns did not stop control");
+    detail::ServoClock::advance_per_read = {};
 #endif
     ControlConfig stage2;
     stage2.tracking_stop_rad = .10;
@@ -308,7 +290,6 @@ int main() try {
     check_field_hold();
     check_j2_takeover();
     ControlLaw c;
-    std::vector<double> timings;
     JointVector q = JointVector::Zero();
     c.reset(q);
     std::array<ArmTarget, 2> targets{};
@@ -316,7 +297,6 @@ int main() try {
         t.joint[1] = t.joint[2] = .08726646;
     for (int k = 0; k < 1000; ++k) {
         c.step(q, targets);
-        timings.push_back(c.state.qp_time.count() / 1000.);
         q = c.state.reference;
     }
     check((q.head<6>() - targets[0].joint).norm() < .001, "cannot lift from zero");
@@ -334,7 +314,6 @@ int main() try {
     double minimum = 10;
     for (int k = 0; k < 2500; ++k) {
         c.step(q, targets);
-        timings.push_back(c.state.qp_time.count() / 1000.);
         q = c.state.reference;
         collision_state({arm_geometry(0, q.head<6>()), arm_geometry(1, q.tail<6>())}, distance);
         minimum = std::min(minimum, distance.inter_arm);
@@ -354,13 +333,10 @@ int main() try {
                     t.joint[j] = ready[j] + offset(rng);
             }
         c.step(q, targets);
-        timings.push_back(c.state.qp_time.count() / 1000.);
         q = c.state.reference;
         collision_state({arm_geometry(0, q.head<6>()), arm_geometry(1, q.tail<6>())}, distance);
         check(distance.hard_margin >= 0 && distance.closest > 0, "random command penetrated");
     }
-    std::sort(timings.begin(), timings.end());
-    std::cout << "Trajectory solver p99 " << timings[timings.size() * 99 / 100] << " us\n";
     // Construct a measured/reference lag which makes the lead and acceleration bounds incompatible.
     q << ready, ready;
     c.reset(q);

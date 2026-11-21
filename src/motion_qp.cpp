@@ -1,4 +1,5 @@
 #include "panthera/motion_qp.hpp"
+#include "servo_clock.hpp"
 #include <acados_c/ocp_qp_interface.h>
 #include <algorithm>
 #include <array>
@@ -9,7 +10,7 @@ namespace panthera {
 namespace {
 constexpr int slots = 16;
 constexpr double tolerance = 1e-7;
-using Clock = std::chrono::steady_clock;
+using Clock = detail::ServoClock;
 } // namespace
 struct MotionQp::Impl {
     ocp_qp_xcond_solver_config* config;

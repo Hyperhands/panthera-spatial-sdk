@@ -1,4 +1,5 @@
 #include "control_law.hpp"
+#include "servo_clock.hpp"
 #include <cmath>
 #include <numbers>
 #include <stdexcept>
@@ -88,7 +89,7 @@ void ControlLaw::freeze() {
     interpolated_ = state.tcp;
 }
 void ControlLaw::step(const JointVector& measured, const std::array<ArmTarget, 2>& targets) {
-    const auto deadline = HostClock::now() + std::chrono::milliseconds(2);
+    const auto deadline = ServoClock::now() + std::chrono::milliseconds(2);
     observe(measured);
     if (((state.reference - measured).array().abs() > tracking_stop_.array()).any())
         throw std::runtime_error("Joint tracking error exceeds stop threshold");
@@ -181,7 +182,7 @@ void ControlLaw::step(const JointVector& measured, const std::array<ArmTarget, 2
             if (!matched)
                 step.success = false;
         }
-        if (HostClock::now() > deadline) {
+        if (ServoClock::now() > deadline) {
             step.success = false;
             break;
         }
