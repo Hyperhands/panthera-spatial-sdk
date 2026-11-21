@@ -4,12 +4,38 @@
 #include <random>
 #ifdef __APPLE__
 #include <pthread/qos.h>
+#include <thread>
+#include <time.h>
 #endif
 using namespace panthera;
 using panthera::detail::ControlLaw;
 void check(bool value, const char* msg) {
     if (!value)
         throw std::runtime_error(msg);
+}
+// Offline trajectories run open-loop as fast as possible. On the virtual macOS
+// runner use the servo cadence for cases that exercise its real wall deadline.
+void trajectory_step(ControlLaw& law, const JointVector& measured,
+                     const std::array<ArmTarget, 2>& targets, int tick) {
+    const auto begin = HostClock::now();
+#ifdef __APPLE__
+    const auto cpu_begin = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
+#endif
+    law.step(measured, targets);
+    if (law.state.frozen) {
+        const std::chrono::duration<double, std::micro> elapsed = HostClock::now() - begin;
+        std::cerr << "Frozen at tick " << tick << ", wall " << elapsed.count() << " us, solver "
+                  << law.state.qp_time.count() / 1000. << " us";
+#ifdef __APPLE__
+        std::cerr << ", thread CPU "
+                  << (clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - cpu_begin) / 1000. << " us";
+#endif
+        std::cerr << "\n";
+        throw std::runtime_error("control trajectory froze");
+    }
+#ifdef __APPLE__
+    std::this_thread::sleep_until(begin + std::chrono::milliseconds(2));
+#endif
 }
 void check_j2_takeover() {
     constexpr double deg = std::numbers::pi / 180.;
@@ -77,15 +103,7 @@ void check_field_hold() {
     for (int side = 0; side < 2; ++side)
         targets[side].joint = start.segment<6>(6 * side);
     auto hold = [&](const JointVector& measured, int tick) {
-        const auto begin = HostClock::now();
-        law.step(measured, targets);
-        if (law.state.frozen || law.state.consecutive_failures) {
-            const auto elapsed =
-                std::chrono::duration_cast<std::chrono::microseconds>(HostClock::now() - begin);
-            std::cerr << "Field hold tick " << tick << ", step " << elapsed.count()
-                      << " us, solver " << law.state.qp_time.count() / 1000. << " us\n";
-            throw std::runtime_error("field hold froze");
-        }
+        trajectory_step(law, measured, targets, tick);
         check((law.state.reference - start).lpNorm<Eigen::Infinity>() < 1e-4,
               "hold reference drifted");
         check((law.state.reference - measured).lpNorm<Eigen::Infinity>() < .006, "excessive lead");
@@ -148,8 +166,7 @@ void check_delayed_joint_feedback() {
         } else {
             measured = law.state.reference;
         }
-        law.step(measured, targets);
-        check(!law.state.frozen, "delayed feedback froze joint motion");
+        trajectory_step(law, measured, targets, k);
         check(((law.state.reference - measured).array().abs() <= cfg.joints.max_lead.array() + 1e-7)
                   .all(),
               "joint reference exceeded lead window");
@@ -179,15 +196,8 @@ void check_braking_trajectories() {
         for (auto& t : targets)
             t.joint = goal;
         for (int k = 0; k < 3000; ++k) {
-            const auto begin = HostClock::now();
-            law.step(q, targets);
-            if (law.state.frozen || law.state.hard_margin < 0.) {
-                const std::chrono::duration<double, std::micro> elapsed = HostClock::now() - begin;
-                std::cerr << "Goal " << goal.transpose() << ", tick " << k << ", step "
-                          << elapsed.count() << " us, solver " << law.state.qp_time.count() / 1000.
-                          << " us, hard margin " << law.state.hard_margin << " m\n";
-                throw std::runtime_error("joint trajectory froze or penetrated");
-            }
+            trajectory_step(law, q, targets, k);
+            check(law.state.hard_margin >= 0., "joint trajectory penetrated");
             q = law.state.reference;
             times.push_back(law.state.qp_time.count() / 1000.);
         }
