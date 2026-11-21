@@ -165,6 +165,20 @@ void check_delayed_joint_feedback() {
               "joint motion did not resume after delayed feedback");
 }
 int main() try {
+    ControlConfig stage2;
+    stage2.tracking_stop_rad = .10;
+    ControlLaw guarded(stage2);
+    JointVector q_start;
+    q_start << 0, 1, 1.3, -.5, 0, 0, 0, 1, 1.3, -.5, 0, 0;
+    guarded.reset(q_start);
+    q_start[3] += .101;
+    bool tracking_stop = false;
+    try {
+        guarded.step(q_start, {});
+    } catch (const std::runtime_error& e) {
+        tracking_stop = std::string(e.what()) == "Joint tracking error exceeds stop threshold";
+    }
+    check(tracking_stop, "Stage 2 tracking stop must be independent of the lead window");
     check_delayed_joint_feedback();
     check_field_hold();
     check_j2_takeover();

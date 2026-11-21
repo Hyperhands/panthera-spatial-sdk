@@ -38,6 +38,13 @@ ControlLaw::ControlLaw(ControlConfig config) : config_(std::move(config)) {
         (b.max_acceleration.array() <= 0).any() || (b.max_lead.array() <= 0).any() ||
         !config_.task_weights.allFinite() || (config_.task_weights.array() < 0).any())
         throw std::invalid_argument("Invalid joint limits or task weights");
+    tracking_stop_ = 2 * b.max_lead;
+    if (config_.tracking_stop_rad) {
+        const double stop = *config_.tracking_stop_rad;
+        if (!std::isfinite(stop) || stop <= 0.)
+            throw std::invalid_argument("Invalid joint tracking stop");
+        tracking_stop_.setConstant(stop);
+    }
     measured_lower_ = b.lower.array() - 1e-5;
     for (int j : {1, 7})
         if (b.lower[j] == 0.)
@@ -83,7 +90,7 @@ void ControlLaw::freeze() {
 void ControlLaw::step(const JointVector& measured, const std::array<ArmTarget, 2>& targets) {
     const auto deadline = HostClock::now() + std::chrono::milliseconds(2);
     observe(measured);
-    if (((state.reference - measured).array().abs() > 2 * config_.joints.max_lead.array()).any())
+    if (((state.reference - measured).array().abs() > tracking_stop_.array()).any())
         throw std::runtime_error("Joint tracking error exceeds stop threshold");
     state.frozen = false;
     const double regularization = config_.regularization, smoothing = config_.smoothing,

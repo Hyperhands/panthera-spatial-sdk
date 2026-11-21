@@ -632,7 +632,9 @@ def main(example=None):
                 telemetry(addresses, pair, record, args.real)
             else:
                 config = sdk.ControlConfig()
-                if stage != STAGES[1]:
+                if stage == STAGES[1]:
+                    config.tracking_stop_rad = 0.10
+                else:
                     config.joints.max_speed = np.full(12, 0.25)
                     config.joints.max_acceleration = np.full(12, 4.0)
                     config.joints.max_lead = np.full(12, 0.05)

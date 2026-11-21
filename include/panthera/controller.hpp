@@ -16,6 +16,8 @@ struct ControlConfig {
     double pose_gain = 10., joint_gain = 8.;
     double regularization = .0001, smoothing = .001, posture_weight = .00001;
     double translation_speed = .2, rotation_speed = 1.2;
+    // When unset, retain the per-axis stop at twice the configured lead.
+    std::optional<double> tracking_stop_rad;
 };
 struct ControlState {
     bool enabled{}, frozen{}, expert{};

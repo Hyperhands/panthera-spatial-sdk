@@ -40,6 +40,7 @@ PYBIND11_MODULE(_core, m) {
     py::class_<ControlConfig>(m, "ControlConfig")
         .def(py::init<>())
         .def_readwrite("joints", &ControlConfig::joints)
+        .def_readwrite("tracking_stop_rad", &ControlConfig::tracking_stop_rad)
         .def_readwrite("task_weights", &ControlConfig::task_weights)
         .def_readwrite("pose_gain", &ControlConfig::pose_gain)
         .def_readwrite("joint_gain", &ControlConfig::joint_gain)

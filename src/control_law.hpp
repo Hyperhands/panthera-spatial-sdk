@@ -14,7 +14,7 @@ class ControlLaw {
     std::array<ArmGeometry, 2> arms_;
     std::array<Eigen::Isometry3d, 2> interpolated_;
     std::array<TargetType, 2> previous_mode_{};
-    JointVector nominal_, measured_lower_;
+    JointVector nominal_, measured_lower_, tracking_stop_;
     CollisionState current_, candidate_;
     ControlConfig config_;
     MotionQp qp_;

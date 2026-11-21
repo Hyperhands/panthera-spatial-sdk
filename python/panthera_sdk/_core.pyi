@@ -502,6 +502,7 @@ class MotionBounds:
         ...
 class ControlConfig:
     joints: MotionBounds
+    tracking_stop_rad: float | None
     def __init__(self) -> None:
         ...
     @property
