@@ -37,8 +37,9 @@ struct Result {
     std::uint32_t revision;
     std::uint64_t lease;
 };
-constexpr std::array<float, 6> kp{24.48f, 61.2f, 61.2f, 12.24f, 12.24f, 12.24f},
-    kd{1.2f, 1.92f, 1.92f, .48f, .48f, .48f};
+// Match the firmware homing gains for J4.
+constexpr std::array<float, 6> kp{24.48f, 61.2f, 61.2f, 36.72f, 12.24f, 12.24f},
+    kd{1.2f, 1.92f, 1.92f, .8313843876f, .48f, .48f};
 constexpr Joints branch{0, std::numbers::pi_v<float> / 2, 2.886410263f, .255182391f, 0, 0};
 constexpr float turn = 2 * std::numbers::pi_v<float>;
 } // namespace
