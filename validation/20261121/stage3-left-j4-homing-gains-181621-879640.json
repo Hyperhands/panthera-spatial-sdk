@@ -1,0 +1,201 @@
+{
+  "stage": "stage3-left-j4-homing-gains",
+  "run_mode": "real",
+  "human_checks": "pending_human_confirmation",
+  "can": {
+    "left": {
+      "samples": 68,
+      "warning_samples": 6,
+      "tx_error_peak": 17,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.0,
+      "last_sample_nonzero": false,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    },
+    "right": {
+      "samples": 67,
+      "warning_samples": 8,
+      "tx_error_peak": 12,
+      "rx_error_peak": 0,
+      "longest_observed_nonzero_s": 0.0,
+      "last_sample_nonzero": true,
+      "tx_failed_start": 0,
+      "tx_failed_delta": 0,
+      "last_bus_state": 0
+    }
+  },
+  "field_checks": {
+    "directions_noise_overshoot": "pending_human_confirmation"
+  },
+  "commit": "a2c44f71962653bc7e93c851edcd043de7f15cf5",
+  "acceptance_file_sha256": "fb2b4c1209c4bae9d02d920a77f648c50837e53b5bc0a564809b46fcfddb54aa",
+  "angular_arrival_tolerance_deg": 2.0,
+  "axis_steps": [
+    {
+      "side": "left",
+      "joint": 4,
+      "leg": "positive",
+      "start_deg": -28.580933412107527,
+      "target_deg": -23.491269600363754,
+      "arrival_deg": -25.482788632893715,
+      "end_deg": -24.54345832955125,
+      "reference_deg": -23.496866917235838,
+      "travel_deg": 4.037475082556277,
+      "end_error_deg": -1.0521887291874954,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 4,
+      "leg": "center",
+      "start_deg": -24.54345832955125,
+      "target_deg": -28.64788975654116,
+      "arrival_deg": -26.685791558955355,
+      "end_deg": -28.3666994061482,
+      "reference_deg": -28.63907241462476,
+      "travel_deg": -3.82324107659695,
+      "end_error_deg": 0.28119035039296136,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 4,
+      "leg": "negative",
+      "start_deg": -28.3666994061482,
+      "target_deg": -33.80450991271857,
+      "arrival_deg": -31.805421323040942,
+      "end_deg": -33.37646728498142,
+      "reference_deg": -33.79607091072246,
+      "travel_deg": -5.009767878833225,
+      "end_error_deg": 0.42804262773714896,
+      "passed": true
+    },
+    {
+      "side": "left",
+      "joint": 4,
+      "leg": "center",
+      "start_deg": -33.37646728498142,
+      "target_deg": -28.64788975654116,
+      "arrival_deg": -30.60241668943201,
+      "end_deg": -29.888306751328837,
+      "reference_deg": -28.653682627125477,
+      "travel_deg": 3.4881605336525867,
+      "end_error_deg": -1.240416994787676,
+      "passed": true
+    }
+  ],
+  "tested_joint": "left J4",
+  "j4_kp": 36.72,
+  "j4_kd": 0.8313843876,
+  "preflight": {
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "last_deg": [
+      -0.307617206065388,
+      57.36511276334712,
+      74.0258839227325,
+      -28.580933412107527,
+      -0.021972656861444863,
+      0.076904301516347,
+      -1.076660221228858,
+      57.139894105655124,
+      74.28405824316982,
+      -28.317260789388353,
+      -0.2856445408663099,
+      0.4779052946571774
+    ],
+    "margin_m": 0.0009871904942976573
+  },
+  "after": {
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "last_deg": [
+      -0.307617206065388,
+      57.38708548190705,
+      74.0258839227325,
+      -29.91577094198146,
+      -0.021972656861444863,
+      0.07141113521657748,
+      -1.076660221228858,
+      57.13440263356243,
+      74.28405824316982,
+      -28.317260789388353,
+      -0.2856445408663099,
+      0.47241211501719466
+    ],
+    "margin_m": 0.0009864945256825297
+  },
+  "can_followup": {
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "last_deg": [
+      -0.307617206065388,
+      57.38708548190705,
+      74.0258839227325,
+      -29.91577094198146,
+      -0.021972656861444863,
+      0.07141113521657748,
+      -1.076660221228858,
+      57.13440263356243,
+      74.28405824316982,
+      -28.317260789388353,
+      -0.2856445408663099,
+      0.4779052946571774
+    ],
+    "margin_m": 0.0009871904942976434
+  },
+  "after_error": "right: CAN counters still nonzero at end; recovery unconfirmed",
+  "actual_duration_s": 6.798326085990993,
+  "automated_checks": "failed",
+  "error": "right: CAN counters still nonzero at end; recovery unconfirmed",
+  "csv_sha256": "6bf6cb771b4e39964f73a99d3b098619bd8bc66773ff03a99de25f6ef3b1fbcc",
+  "j4_arrival_checks": "passed",
+  "later_board_owned_can_observation": {
+    "duration_s": 3,
+    "observed_before": "stage3-right-j4-homing-gains-181648-454461",
+    "owner": [
+      2,
+      2
+    ],
+    "run_state": [
+      0,
+      0
+    ],
+    "left": {
+      "samples": 30,
+      "warning_samples": 4,
+      "tx_error_peak": 11,
+      "last_sample_nonzero": false,
+      "last_bus_state": 0,
+      "tx_failed_delta": 0
+    },
+    "right": {
+      "samples": 30,
+      "warning_samples": 5,
+      "tx_error_peak": 8,
+      "last_sample_nonzero": false,
+      "last_bus_state": 0,
+      "tx_failed_delta": 0
+    }
+  }
+}
