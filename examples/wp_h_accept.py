@@ -35,6 +35,72 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+class CanWindow:
+    """Evaluate distinct Diagnostics samples for one board during this run."""
+
+    def __init__(self, side):
+        self.side = side
+        self.last_sequence = None
+        self.nonzero_since = None
+        self.metrics = dict(
+            samples=0,
+            warning_samples=0,
+            tx_error_peak=0,
+            rx_error_peak=0,
+            longest_observed_nonzero_s=0.0,
+            last_sample_nonzero=False,
+            tx_failed_start=None,
+            tx_failed_delta=0,
+            last_bus_state=None,
+        )
+
+    def observe(self, diagnostics):
+        if diagnostics is None or self.last_sequence == diagnostics.sequence:
+            return
+        self.last_sequence = diagnostics.sequence
+        metrics = self.metrics
+        # Diagnostics validity bits 1, 6, 7, 8 cover TX failures, state, TEC, REC.
+        required = 0x1C2
+        require(
+            diagnostics.counter_valid_mask & required == required,
+            f"{self.side}: invalid CAN diagnostics",
+        )
+        if metrics["tx_failed_start"] is None:
+            metrics["tx_failed_start"] = diagnostics.can_tx_failed
+        metrics["samples"] += 1
+        metrics["tx_failed_delta"] = (
+            diagnostics.can_tx_failed - metrics["tx_failed_start"]
+        ) & 0xFFFFFFFF
+        metrics["last_bus_state"] = diagnostics.can_bus_state
+        require(
+            diagnostics.can_bus_state == 0,
+            f"{self.side}: CAN bus state {diagnostics.can_bus_state} (expected ERROR_ACTIVE)",
+        )
+        require(
+            metrics["tx_failed_delta"] == 0,
+            f"{self.side}: CAN TX failures increased by {metrics['tx_failed_delta']}",
+        )
+        metrics["tx_error_peak"] = max(
+            metrics["tx_error_peak"], diagnostics.can_tx_error_count
+        )
+        metrics["rx_error_peak"] = max(
+            metrics["rx_error_peak"], diagnostics.can_rx_error_count
+        )
+        metrics["last_sample_nonzero"] = bool(
+            diagnostics.can_tx_error_count or diagnostics.can_rx_error_count
+        )
+        if metrics["last_sample_nonzero"]:
+            metrics["warning_samples"] += 1
+            if self.nonzero_since is None:
+                self.nonzero_since = diagnostics.received_at
+            metrics["longest_observed_nonzero_s"] = max(
+                metrics["longest_observed_nonzero_s"],
+                diagnostics.received_at - self.nonzero_since,
+            )
+        else:
+            self.nonzero_since = None
+
+
 class Record:
     def __init__(self, output, stage, real):
         stamp = datetime.now()
@@ -47,6 +113,8 @@ class Record:
             run_mode="real" if real else "smoke_loopback",
             human_checks="pending_human_confirmation",
         )
+        self.can = [CanWindow("left"), CanWindow("right")]
+        self.summary["can"] = {w.side: w.metrics for w in self.can}
         manual = {
             STAGES[0]: ["boot_homing", "encoder_branches_after_power_cycle"],
             STAGES[1]: ["soft_hold_posture", "disconnected_board_stop"],
@@ -121,6 +189,13 @@ class Record:
             ]
         )
 
+    def check_can_recovery(self):
+        for window in self.can:
+            require(
+                not window.metrics["last_sample_nonzero"],
+                f"{window.side}: CAN counters still nonzero at end; recovery unconfirmed",
+            )
+
     def finish(self, error):
         self.stream.close()
         self.summary.update(
@@ -155,9 +230,6 @@ def check_board(board):
             and not np.any(f.hand_fault_raw),
             "Active board, arm or hand fault",
         )
-    if board.diagnostics:
-        d = board.diagnostics
-        require(d.can_tx_error_count == d.can_rx_error_count == 0, "CAN error counters")
 
 
 def telemetry(addresses, pair, report, real):
@@ -169,14 +241,31 @@ def telemetry(addresses, pair, report, real):
     last = [None, None]
     duration = 60 if real else 0.5
     start = time.monotonic()
-    while time.monotonic() - start < duration:
+    while True:
+        elapsed = time.monotonic() - start
+        if elapsed >= duration:
+            pending = any(w.metrics["last_sample_nonzero"] for w in report.can)
+            if not pending or elapsed >= duration + 0.5:
+                break
         for i, r in enumerate(rx):
             b = r.poll()
             if b.arm is None:
                 require(time.monotonic() - start < 0.5, "No telemetry")
                 continue
-            check_board(b)
             a = b.arm
+            diagnostics = b.diagnostics
+            # Allow the 10 Hz diagnostics stream the same startup grace as ArmState.
+            diagnostic_age = (
+                a.received_at - diagnostics.received_at
+                if diagnostics
+                else time.monotonic() - start
+            )
+            require(
+                diagnostic_age < 0.5,
+                f"{report.can[i].side}: missing or stale CAN diagnostics",
+            )
+            report.can[i].observe(diagnostics)
+            check_board(b)
             if previous[i] != a.sequence:
                 samples[i].append((a.received, a.received_at, a.missing))
                 previous[i] = a.sequence
@@ -233,12 +322,7 @@ class Motion:
                     not b.restarts and not b.encoder_jumps,
                     "Unexpected board restart or jump",
                 )
-                if b.diagnostics:
-                    d = b.diagnostics
-                    require(
-                        d.can_tx_error_count == d.can_rx_error_count == 0,
-                        "CAN error counters",
-                    )
+                self.report.can[i].observe(b.diagnostics)
                 self.report.row(i, b, s)
             if s.qp_time:
                 self.report.solve_us.append(s.qp_time * 1e6)
@@ -575,6 +659,7 @@ def main(example=None):
                     soak(motion)
                 elif stage == "expert_mit":
                     expert(motion, pair)
+        record.check_can_recovery()
     except BaseException as exc:
         record.finish(exc)
         raise

@@ -25,7 +25,7 @@ class TelemetryBoard:
         self.faults = zero("FaultSnapshot")
         self.faults.update(policy_revision=1, arm_fault_valid_mask=63)
         self.diagnostics = zero("Diagnostics")
-        self.diagnostics.update(control_period_mean_us=2000)
+        self.diagnostics.update(control_period_mean_us=2000, counter_valid_mask=0x1ff)
 
     def send(self, host_port, name, message, now_us):
         sequence = (self.sequence.get(name, 0) + 1) & 0xFFFFFFFF

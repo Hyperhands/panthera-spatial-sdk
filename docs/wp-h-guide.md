@@ -51,7 +51,8 @@
    ./build/host/panthera-read-state
    ```
 3. 持续只读采样 60 秒（在 WP-F / 验收工具里持续 `poll()` 统计 `ArmState`、`HandState`、`Diagnostics`），核对：
-   - **链路质量**：两板 `ArmState` 实际频率 ≈ 500 Hz，记录接收间隔 p50/p99 与 `missing` 序号缺口；`Diagnostics` 中 CAN 错误计数为 0、`fault_code_raw` 全 0。
+   - **链路质量**：两板 `ArmState` 实际频率 ≈ 500 Hz，记录接收间隔 p50/p99 与 `missing` 序号缺口，六轴反馈年龄（含主机接收延迟）须小于 20 ms，`fault_code_raw` 全 0。
+   - **CAN 判定（各阶段共用）**：以各板首个有效 `Diagnostics` 的 `can_tx_failed` 为基线。窗口内新增发送失败或观测到总线离开 `ERROR_ACTIVE` 即失败。总线正常、发送未失败且反馈有效时，短时非零 TEC/REC 记告警。只读窗口末尾若计数仍非零，额外监听最多 0.5 秒以确认恢复。结束时计数仍非零，或只读窗口内诊断中断 0.5 秒，均判失败。JSON 的 `can.left/right` 分别记录峰值、非零诊断样本数、最长连续非零样本首尾间隔和末次状态。诊断默认 10 Hz，样本数不等于错误帧数。
    - **整圈回绕轴号与回零分支**：记录两板在 `HOME_HOLD` 下的原始 `q_rad[0..5]`，按 [session.cpp](../src/session.cpp#L42) 与固件 `home_path.c` 的 `branch_reference = [0, π/2, 2.886410263, 0.255182391, 0, 0]` 核对：
      - 扣除 `zero[j] = 2π·floor((q_raw[j] − branch[j]) / 2π + 0.5)` 后，两板 6 轴逻辑角度应接近 `[0, 0, 0, 0, 0, 0]`（误差 < 2°）。
      - 特别核对历史上存在整圈偏移的 **J2**（旧配置 1-based `[2]`）及全部 6 轴在断电重启后是否稳定落入一致分支。
