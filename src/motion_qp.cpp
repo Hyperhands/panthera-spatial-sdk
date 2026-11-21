@@ -53,6 +53,12 @@ struct MotionQp::Impl {
         std::array<double, slots> zeros{};
         set(0, "ug_mask", zeros.data());
     }
+    enum class BoxStatus { solved, infeasible, failed };
+    BoxStatus solve_box(QpStep& result, const JointVector& reference, const JointVector& lo,
+                        const JointVector& hi, const JointVector& vlo, const JointVector& vhi,
+                        const JointMatrix& hessian, const JointVector& linear,
+                        std::span<const CollisionRow> rows, int budget, Clock::time_point deadline,
+                        bool projection = false);
     ~Impl() {
         ocp_qp_solver_destroy(solver);
         ocp_qp_xcond_solver_opts_free(opts);
@@ -69,45 +75,61 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
                        const JointVector& linear, const MotionBounds& limits,
                        std::span<const CollisionRow> rows, int max_solves) {
     QpStep result{reference, JointVector::Zero()};
-    const auto start = Clock::now();
-    auto& qp = *impl_;
-    JointVector lo = limits.lower.cwiseMax(measured - limits.max_lead);
-    JointVector hi = limits.upper.cwiseMin(measured + limits.max_lead);
-    // Reduce allowable speed over the final 1/8 s of approach to a joint limit.
-    JointVector slow = (8 * (limits.lower - measured)).cwiseMin(0);
-    JointVector fast = (8 * (limits.upper - measured)).cwiseMax(0);
-    JointVector vlo = (-limits.max_speed)
-                          .cwiseMax(previous - control_dt * limits.max_acceleration)
-                          .cwiseMax(slow);
-    JointVector vhi =
-        limits.max_speed.cwiseMin(previous + control_dt * limits.max_acceleration).cwiseMin(fast);
+    const auto deadline = Clock::now() + std::chrono::milliseconds(2);
+    const int budget = std::min(3, max_solves);
     if (!measured.allFinite() || !reference.allFinite() || !previous.allFinite() ||
-        !hessian.allFinite() || !linear.allFinite() || !lo.allFinite() || !hi.allFinite() ||
-        !vlo.allFinite() || !vhi.allFinite() || (lo.array() > hi.array()).any() ||
-        (vlo.array() > vhi.array()).any())
+        !hessian.allFinite() || !linear.allFinite() || !limits.lower.allFinite() ||
+        !limits.upper.allFinite() || !limits.max_speed.allFinite() ||
+        !limits.max_lead.allFinite() || !limits.max_acceleration.allFinite() ||
+        (limits.max_acceleration.array() <= 0.).any())
         return result;
-    // x1 = reference + dt*u. Translate its bounds into equivalent velocity
-    // bounds before condensing, eliminating twelve redundant HPIPM rows.
-    vlo = vlo.cwiseMax((lo - reference) / control_dt);
-    vhi = vhi.cwiseMin((hi - reference) / control_dt);
+    const JointVector lo = limits.lower.cwiseMax(measured - limits.max_lead);
+    const JointVector hi = limits.upper.cwiseMin(measured + limits.max_lead);
+    // Position, tracking lead, joint-limit damping and speed always remain hard.
+    const JointVector safe_lo = (-limits.max_speed)
+                                    .cwiseMax((8 * (limits.lower - measured)).cwiseMin(0))
+                                    .cwiseMax((lo - reference) / control_dt);
+    const JointVector safe_hi =
+        limits.max_speed.cwiseMin((8 * (limits.upper - measured)).cwiseMax(0))
+            .cwiseMin((hi - reference) / control_dt);
+    if ((lo.array() > hi.array()).any() || !safe_lo.allFinite() || !safe_hi.allFinite() ||
+        (safe_lo.array() > safe_hi.array()).any())
+        return result;
+    for (const auto& row : rows)
+        if (!row.gradient.allFinite() || !std::isfinite(row.lower) ||
+            !std::isfinite(row.clearance_margin))
+            return result;
+
+    const JointVector dv = control_dt * limits.max_acceleration;
+    const auto status =
+        impl_->solve_box(result, reference, lo, hi, safe_lo.cwiseMax(previous - dv),
+                         safe_hi.cwiseMin(previous + dv), hessian, linear, rows, budget, deadline);
+    if (status == Impl::BoxStatus::infeasible && result.solves < budget && Clock::now() < deadline)
+        impl_->solve_box(result, reference, lo, hi, safe_lo, safe_hi, JointMatrix::Identity(),
+                         -previous, rows, budget, deadline, true);
+    return result;
+}
+MotionQp::Impl::BoxStatus MotionQp::Impl::solve_box(QpStep& result, const JointVector& reference,
+                                                    const JointVector& lo, const JointVector& hi,
+                                                    const JointVector& vlo, const JointVector& vhi,
+                                                    const JointMatrix& hessian,
+                                                    const JointVector& linear,
+                                                    std::span<const CollisionRow> rows, int budget,
+                                                    Clock::time_point deadline, bool projection) {
     if ((vlo.array() > vhi.array()).any())
-        return result;
-    auto& order = qp.order;
+        return BoxStatus::infeasible;
     order.clear();
     order.reserve(rows.size());
     for (size_t i = 0; i < rows.size(); ++i) {
         const auto& row = rows[i];
-        if (!row.gradient.allFinite() || !std::isfinite(row.lower) ||
-            !std::isfinite(row.clearance_margin))
-            return result;
         const JointVector at_lo = row.gradient.cwiseProduct(vlo);
         const JointVector at_hi = row.gradient.cwiseProduct(vhi);
         // No slot is needed if the whole velocity box satisfies the row.
         if (at_lo.cwiseMin(at_hi).sum() >= row.lower - 1e-12)
             continue;
-        // If even its best corner violates the row, freeze before factorization.
+        // If even its best corner violates the row, this box is infeasible.
         if (at_lo.cwiseMax(at_hi).sum() < row.lower - tolerance)
-            return result;
+            return BoxStatus::infeasible;
         order.push_back(i);
     }
     // For a stationary joint target with positive diagonal cost, zero velocity is
@@ -115,19 +137,19 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
     if (linear.isZero(0.) && hessian.isDiagonal(0.) && hessian.diagonal().minCoeff() > 0. &&
         vlo.maxCoeff() <= 0. && vhi.minCoeff() >= 0. &&
         std::all_of(rows.begin(), rows.end(), [](const auto& row) { return row.lower <= 0.; })) {
-        result.success = true;
-        return result;
+        result.success = Clock::now() < deadline;
+        return result.success ? BoxStatus::solved : BoxStatus::failed;
     }
-    qp.set(0, "R", hessian.data());
-    qp.set(0, "r", linear.data());
-    qp.set(0, "b", reference.data());
-    qp.set(0, "lbu", vlo.data());
-    qp.set(0, "ubu", vhi.data());
+    set(0, "R", hessian.data());
+    set(0, "r", linear.data());
+    set(0, "b", reference.data());
+    set(0, "lbu", vlo.data());
+    set(0, "ubu", vhi.data());
     const size_t used = std::min<size_t>(slots, order.size());
     std::partial_sort(order.begin(), order.begin() + used, order.end(), [&](auto a, auto b) {
         return rows[a].clearance_margin < rows[b].clearance_margin;
     });
-    for (int attempt = 0; attempt < std::min(3, max_solves); ++attempt) {
+    while (result.solves < budget) {
         Eigen::Matrix<double, slots, 12> d = Eigen::Matrix<double, slots, 12>::Zero();
         Eigen::Matrix<double, slots, 1> lb = Eigen::Matrix<double, slots, 1>::Constant(-10),
                                         ub = Eigen::Matrix<double, slots, 1>::Constant(100);
@@ -139,38 +161,76 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
         }
         std::array<double, slots> mask{};
         std::fill_n(mask.begin(), used, 1.);
-        qp.set(0, "lg_mask", mask.data());
-        qp.set(0, "D", d.data());
-        qp.set(0, "lg", lb.data());
-        qp.set(0, "ug", ub.data());
+        set(0, "lg_mask", mask.data());
+        set(0, "D", d.data());
+        set(0, "lg", lb.data());
+        set(0, "ug", ub.data());
         auto before = Clock::now();
-        int status = ocp_qp_solve(qp.solver, qp.in, qp.out);
+        if (before >= deadline)
+            return BoxStatus::failed;
+        int status = ocp_qp_solve(solver, in, out);
         result.solve_time += Clock::now() - before;
         ++result.solves;
-        if (status != 0 || Clock::now() - start > std::chrono::milliseconds(2))
-            return result;
+        if (Clock::now() >= deadline)
+            return BoxStatus::failed;
+        if (status != 0) {
+            if (status != ACADOS_MAXITER && status != ACADOS_MINSTEP)
+                return BoxStatus::failed;
+            // A nonnegative combination of rows is itself a necessary inequality.
+            // Use solver multipliers only as candidate weights; verify the separation
+            // on the actual box before relaxing acceleration on a numerical failure.
+            std::array<double, 2 * (12 + slots)> lam{};
+            ocp_qp_out_get(out, 0, "lam", lam.data());
+            JointVector normal = JointVector::Zero();
+            double lower = 0., weight_sum = 0.;
+            for (size_t i = 0; i < used; ++i) {
+                const auto& row = rows[order[i]];
+                const double weight =
+                    std::max(0., lam[12 + i]) / std::max(row.gradient.norm(), 1e-10);
+                normal += weight * row.gradient;
+                lower += weight * row.lower;
+                weight_sum += weight;
+            }
+            const double best = normal.cwiseProduct(vlo).cwiseMax(normal.cwiseProduct(vhi)).sum();
+            if (std::isfinite(best) && std::isfinite(lower) &&
+                lower - best > tolerance * weight_sum)
+                return BoxStatus::infeasible;
+            return BoxStatus::failed;
+        }
         JointVector u, x;
-        ocp_qp_out_get(qp.out, 0, "u", u.data());
-        ocp_qp_out_get(qp.out, 1, "x", x.data());
+        ocp_qp_out_get(out, 0, "u", u.data());
+        ocp_qp_out_get(out, 1, "x", x.data());
         if (!u.allFinite() || !x.allFinite() ||
             (x - reference - control_dt * u).lpNorm<Eigen::Infinity>() > tolerance ||
             (x.array() < lo.array() - tolerance).any() ||
             (x.array() > hi.array() + tolerance).any() ||
             (u.array() < vlo.array() - tolerance).any() ||
             (u.array() > vhi.array() + tolerance).any())
-            return result;
+            return BoxStatus::failed;
+        if (projection) {
+            // Coordinates absent from the selected rows have an exact scalar projection.
+            // At a speed bound an IPM can otherwise leave them slightly inside the box.
+            for (int j = 0; j < u.size(); ++j) {
+                if (d.col(j).isZero(0.)) {
+                    u[j] = std::clamp(-linear[j], vlo[j], vhi[j]);
+                    x[j] = reference[j] + control_dt * u[j];
+                }
+            }
+        }
         auto slack = [&](size_t i) { return rows[i].gradient.dot(u) - rows[i].lower; };
         if (std::all_of(rows.begin(), rows.end(),
                         [&](const auto& r) { return r.gradient.dot(u) >= r.lower - tolerance; })) {
+            if (Clock::now() >= deadline)
+                return BoxStatus::failed;
             result.position = x;
             result.velocity = u;
             result.success = true;
-            return result;
+            return BoxStatus::solved;
         }
         // Replace loose slots with the most violated constraints, then check all again.
         std::partial_sort(order.begin(), order.begin() + used, order.end(),
                           [&](auto a, auto b) { return slack(a) < slack(b); });
     }
-    return result;
+    return BoxStatus::failed;
 }
 } // namespace panthera

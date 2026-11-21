@@ -31,7 +31,7 @@ void check_offset_speed_boxes(MotionQp& qp) {
     lift(.199999989, .199999756, .299109188, .202612471);
 
     // At the folded-pose transition neither arm can satisfy its closing-speed row
-    // within one acceleration step. Return control to the servo so it can freeze.
+    // within one acceleration step. Both rows must hold during braking.
     JointVector closing = zero;
     closing[2] = .24805;
     closing[7] = .24803;
@@ -43,9 +43,11 @@ void check_offset_speed_boxes(MotionQp& qp) {
         row.gradient.segment<3>(6 * side + 2) << (side ? -.05535 : -.05534), .02451, .01395;
         row.clearance_margin = side ? -.000172 : -.000170;
     }
-    const auto infeasible = qp.solve(zero, zero, closing, h, zero, bounds, folded);
-    check(!infeasible.success && infeasible.solves == 0,
-          "incompatible folded-pose collision rows reached solver");
+    const auto brake = qp.solve(zero, zero, closing, h, zero, bounds, folded);
+    check(brake.success && (brake.velocity - closing).norm() < closing.norm(),
+          "folded pose must brake less abruptly than freezing");
+    for (const auto& row : folded)
+        check(row.gradient.dot(brake.velocity) >= row.lower - 1e-7, "brake violated folded row");
 
     bounds.max_speed.setConstant(.8);
     const JointVector normal = JointVector::Unit(2) - JointVector::Unit(8);
@@ -63,9 +65,58 @@ void check_offset_speed_boxes(MotionQp& qp) {
     }
 }
 
+void check_safety_projection(MotionQp& qp) {
+    const JointVector z = JointVector::Zero(), one = JointVector::Ones();
+    MotionBounds bounds{-2 * one, 2 * one, one, 8 * one, .08 * one};
+    const auto h = JointMatrix::Identity().eval();
+    JointVector previous = .15 * one, normal = z;
+    previous[1] = 1.; // An unrelated axis already at its hard speed limit.
+    previous.segment<3>(8) << -.67418031, .06654983, .01012964;
+    normal.segment<3>(8) << .264726, .0831067, .00842035;
+    std::array<CollisionRow, 1> row{{{normal, -.141542, .0280253}}};
+    const JointVector projection =
+        previous + normal * ((row[0].lower - normal.dot(previous)) / normal.squaredNorm());
+    const auto brake = qp.solve(z, z, previous, h, one, bounds, row, 1);
+    check(brake.success && brake.solves == 1 && normal.dot(brake.velocity) >= row[0].lower - 1e-7 &&
+              (brake.velocity - projection).lpNorm<Eigen::Infinity>() < 1e-7,
+          "tick 679 minimum braking projection");
+
+    bounds.max_lead.setConstant(.05);
+    bounds.max_acceleration.setConstant(4.);
+    JointVector ref = z;
+    ref[3] = .04984;
+    previous[3] = .25;
+    const auto lead = qp.solve(z, ref, previous, h, one, bounds, {});
+    JointVector expected = previous;
+    expected[3] = .08;
+    check(lead.success && (lead.velocity - expected).lpNorm<Eigen::Infinity>() < 1e-7 &&
+              lead.position[3] <= .05 + 1e-7,
+          "tick 139 lead projection");
+    ref[3] = .07;
+    check(!qp.solve(z, ref, previous, h, one, bounds, {}).success, "hard lead box is empty");
+    for (double sign : {-1., 1.}) {
+        JointVector edge = z, outward = z;
+        edge[0] = sign * 1.99;
+        outward[0] = sign * .6;
+        const auto damped = qp.solve(edge, edge, outward, h, one, bounds, {});
+        check(damped.success && std::abs(damped.velocity[0] - sign * .08) < 1e-7,
+              "braking must preserve the joint-limit damper");
+    }
+    row[0].lower = 2.;
+    check(!qp.solve(z, z, previous, h, one, bounds, row).success, "infeasible hard collision row");
+    const std::array<CollisionRow, 2> joint_conflict{
+        {{JointVector::Unit(0) + JointVector::Unit(1), .012, 0.},
+         {JointVector::Unit(0) - JointVector::Unit(1), .012, 0.}}};
+    const auto coupled = qp.solve(z, z, z, h, z, bounds, joint_conflict);
+    check(coupled.success && coupled.solves <= 3 && std::abs(coupled.velocity[0] - .012) < 1e-7,
+          "jointly infeasible smooth rows");
+    check(!qp.solve(z, z, z, h, z, bounds, joint_conflict, 1).success, "exhausted solve budget");
+}
+
 int main() try {
     MotionQp qp;
     check_offset_speed_boxes(qp);
+    check_safety_projection(qp);
     auto z = JointVector::Zero().eval(), one = JointVector::Ones().eval();
     MotionBounds bounds{-one, one, one, 1000 * one, .05 * one};
     auto q = z;

@@ -164,6 +164,85 @@ void check_delayed_joint_feedback() {
         check((law.state.reference.segment<6>(6 * side) - targets[side].joint).norm() < .001,
               "joint motion did not resume after delayed feedback");
 }
+void check_braking_trajectories() {
+    ControlLaw law;
+    JointVector q = JointVector::Zero();
+    std::array<ArmTarget, 2> targets{};
+    law.reset(q);
+    Six ready;
+    ready << 0, 1, 1.3, -.5, 0, 0;
+    std::vector<double> times;
+    auto track = [&](const Six& goal, double tolerance) {
+        for (auto& t : targets)
+            t.joint = goal;
+        for (int k = 0; k < 3000; ++k) {
+            law.step(q, targets);
+            check(!law.state.frozen && law.state.hard_margin >= 0.,
+                  "joint trajectory froze or penetrated");
+            q = law.state.reference;
+            times.push_back(law.state.qp_time.count() / 1000.);
+        }
+        for (int side = 0; side < 2; ++side)
+            check((q.segment<6>(side * 6) - goal).lpNorm<Eigen::Infinity>() < tolerance,
+                  "joint target not reached");
+    };
+    track(ready, .004);
+    track(Six::Zero(), 2 * std::numbers::pi / 180.);
+    std::sort(times.begin(), times.end());
+    check(times[times.size() * 99 / 100] < 100., "round trip QP p99 exceeded 100 us");
+    std::cout << "Round trip p99 " << times[times.size() * 99 / 100] << " us\n";
+
+    // Recorded measured pose at tick 679 and the preceding emitted state.
+    JointVector ref, previous;
+    q << 0.00939563289285, 0.0232014600188, 0.208333775401, -0.0420885980129, -0.00047936901683,
+        0.00814927276224, -0.00498543772846, 0.0229138378054, 0.140455126762, -0.053497582674,
+        -0.00498543772846, 0.00814927276224;
+    ref << 5.22331780945e-07, 0.00678334113003, 0.205460808205, 0.000442098569926,
+        9.30059279985e-06, 3.10199584162e-07, -1.58253912097e-07, 0.00580292968229, 0.128373149669,
+        -0.00195637672063, 0.000355116355074, 2.60957149434e-07;
+    previous << -4.07960684608e-06, -0.0361303167677, -0.54709654919, -0.00359890587536,
+        -7.56123439603e-05, -2.4203905506e-06, 1.2338876489e-06, -0.0471643566303, -0.674180309928,
+        0.0665498286658, 0.0101296445347, -2.03567090772e-06;
+    law.reset(q);
+    law.state.reference = ref;
+    law.state.velocity = previous;
+    law.step(q, targets);
+    check(!law.state.frozen && (law.state.velocity - previous).norm() < previous.norm(),
+          "tick 679 return");
+    const JointVector change = law.state.velocity - previous;
+    check(std::abs(change[8] - .107581) < 1e-5 && std::abs(change[9] - .0337733) < 1e-5,
+          "tick 679 right arm braking");
+    for (int j = 0; j < 12; ++j)
+        if (j != 8 && j != 9)
+            check(std::abs(change[j]) <= 8 * control_dt + 1e-7, "unnecessary emergency braking");
+    CollisionState field;
+    collision_state({arm_geometry(0, q.head<6>()), arm_geometry(1, q.tail<6>())}, field);
+    double min_slack = 1.;
+    for (const auto& r : field.rows)
+        min_slack = std::min(min_slack, r.gradient.dot(law.state.velocity) - r.lower);
+    q = law.state.reference;
+    collision_state({arm_geometry(0, q.head<6>()), arm_geometry(1, q.tail<6>())}, field);
+    std::cout << "Tick 679 slack " << min_slack << ", candidate hard margin " << field.hard_margin
+              << " m\n";
+    check(min_slack >= -1e-7 && field.hard_margin >= 0., "tick 679 constraint violation");
+    track(Six::Zero(), 2 * std::numbers::pi / 180.);
+
+    q << ready, ready;
+    for (auto mode : {TargetType::twist, TargetType::pose}) {
+        law.reset(q);
+        for (int s = 0; s < 2; ++s) {
+            targets[s].type = mode;
+            targets[s].pose = law.state.tcp[s];
+            targets[s].twist.setZero();
+        }
+        law.state.reference[0] += .07984;
+        law.state.velocity[0] = .25;
+        law.step(q, targets);
+        check(!law.state.frozen && law.state.velocity[0] <= .08 + 1e-7 &&
+                  law.state.reference[0] - q[0] <= .08 + 1e-7,
+              "Cartesian lead braking");
+    }
+}
 int main() try {
     ControlConfig stage2;
     stage2.tracking_stop_rad = .10;
@@ -179,6 +258,7 @@ int main() try {
         tracking_stop = std::string(e.what()) == "Joint tracking error exceeds stop threshold";
     }
     check(tracking_stop, "Stage 2 tracking stop must be independent of the lead window");
+    check_braking_trajectories();
     check_delayed_joint_feedback();
     check_field_hold();
     check_j2_takeover();
