@@ -30,6 +30,22 @@ void check_offset_speed_boxes(MotionQp& qp) {
     lift(.25, .248182845, .340713058, .244214505);
     lift(.199999989, .199999756, .299109188, .202612471);
 
+    // At the folded-pose transition neither arm can satisfy its closing-speed row
+    // within one acceleration step. Return control to the servo so it can freeze.
+    JointVector closing = zero;
+    closing[2] = .24805;
+    closing[7] = .24803;
+    closing[8] = .24807;
+    std::array<CollisionRow, 2> folded{};
+    for (int side = 0; side < 2; ++side) {
+        auto& row = folded[side];
+        row.gradient.setZero();
+        row.gradient.segment<3>(6 * side + 2) << (side ? -.05535 : -.05534), .02451, .01395;
+        row.clearance_margin = side ? -.000172 : -.000170;
+    }
+    check(!qp.solve(zero, zero, closing, h, zero, bounds, folded).success,
+          "incompatible folded-pose collision rows accepted");
+
     bounds.max_speed.setConstant(.8);
     const JointVector normal = JointVector::Unit(2) - JointVector::Unit(8);
     const std::array<CollisionRow, 1> rows{{{normal, 0., 0.}}};

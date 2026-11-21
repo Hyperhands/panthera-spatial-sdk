@@ -38,6 +38,10 @@ struct MotionQp::Impl {
         out = ocp_qp_out_create_from_xcond_dims(dims);
         opts =
             static_cast<ocp_qp_xcond_solver_opts*>(ocp_qp_xcond_solver_opts_create(config, dims));
+        // Use LQ factorization so incompatible collision and acceleration constraints
+        // can return a failure without stalling in Cholesky regularization.
+        char mode[] = "ROBUST";
+        ocp_qp_xcond_solver_opts_set(config, opts, "hpipm_mode", mode);
         // Avoid HPIPM's heuristic slack initialization for narrow, offset speed boxes.
         // Use symmetric slack/multiplier initialization and separate primal/dual step lengths.
         int warm = 0, t0_init = 0, split_step = 1;
