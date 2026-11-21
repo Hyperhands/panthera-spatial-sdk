@@ -76,6 +76,14 @@ int main() try {
     auto lin = -one;
     auto bound = qp.solve(q, ref, z, h, lin, bounds, {});
     check(bound.success && bound.position[0] <= 1.00000001, "lagging joint at upper limit");
+    std::array<CollisionRow, 1> hold_row{{{JointVector::Unit(0), 0., 0.}}};
+    auto hold = qp.solve(z, z, z, h, z, bounds, hold_row);
+    check(hold.success && hold.solves == 0 && hold.position == z && hold.velocity == z,
+          "feasible stationary joint hold must be exact");
+    hold_row[0].lower = .1;
+    hold = qp.solve(z, z, z, h, z, bounds, hold_row);
+    check(hold.success && hold.solves > 0 && hold.velocity[0] >= .1 - 1e-7,
+          "stationary target must respect outward collision velocity");
     std::vector<CollisionRow> rows(17, {one, -4, .01});
     rows.back() = {-JointVector::Unit(4), -.1, .02};
     auto result = qp.solve(z, z, z, h, lin, bounds, rows);

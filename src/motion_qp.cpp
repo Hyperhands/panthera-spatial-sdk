@@ -92,11 +92,6 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
     vhi = vhi.cwiseMin((hi - reference) / control_dt);
     if ((vlo.array() > vhi.array()).any())
         return result;
-    qp.set(0, "R", hessian.data());
-    qp.set(0, "r", linear.data());
-    qp.set(0, "b", reference.data());
-    qp.set(0, "lbu", vlo.data());
-    qp.set(0, "ubu", vhi.data());
     auto& order = qp.order;
     order.clear();
     order.reserve(rows.size());
@@ -115,6 +110,19 @@ QpStep MotionQp::solve(const JointVector& measured, const JointVector& reference
             return result;
         order.push_back(i);
     }
+    // For a stationary joint target with positive diagonal cost, zero velocity is
+    // the exact minimizer. Accept it only when it satisfies every bound and row.
+    if (linear.isZero(0.) && hessian.isDiagonal(0.) && hessian.diagonal().minCoeff() > 0. &&
+        vlo.maxCoeff() <= 0. && vhi.minCoeff() >= 0. &&
+        std::all_of(rows.begin(), rows.end(), [](const auto& row) { return row.lower <= 0.; })) {
+        result.success = true;
+        return result;
+    }
+    qp.set(0, "R", hessian.data());
+    qp.set(0, "r", linear.data());
+    qp.set(0, "b", reference.data());
+    qp.set(0, "lbu", vlo.data());
+    qp.set(0, "ubu", vhi.data());
     const size_t used = std::min<size_t>(slots, order.size());
     std::partial_sort(order.begin(), order.begin() + used, order.end(), [&](auto a, auto b) {
         return rows[a].clearance_margin < rows[b].clearance_margin;
