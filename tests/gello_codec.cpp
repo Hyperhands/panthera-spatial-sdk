@@ -99,14 +99,30 @@ int main() {
         parsed += parser.feed(b, out) ? 1 : 0;
     assert(parsed == 0);
 
-    // Non-zero error byte rejected.
-    const auto err_reply = make_reply(2, 1, 500, 0);
+    // Non-zero status byte still yields position (matching gello_compare_driver) with vel=0.
+    const auto err_reply = make_reply(2, 1, 500, 99);
     parsed = 0;
-    for (std::uint8_t b : err_reply)
-        parsed += parser.feed(b, out) ? 1 : 0;
-    assert(parsed == 0);
+    for (std::uint8_t b : err_reply) {
+        if (parser.feed(b, out)) {
+            ++parsed;
+            assert(out.id == 2);
+            assert(out.raw == 500);
+            assert(out.velocity == 0);
+        }
+    }
+    assert(parsed == 1);
 
-    // 4. Tracker: multi-turn rollover and jump suppression + confirmation.
+    // Sync read request framing & checksum.
+    const auto sync_req = gello_sync_read_request({1, 2, 3, 4, 5, 6, 7});
+    assert(sync_req.size() == 15);
+    assert(sync_req[0] == 0xff && sync_req[1] == 0xff && sync_req[2] == 0xfe &&
+           sync_req[3] == 11 && sync_req[4] == 0x82 && sync_req[5] == 56 && sync_req[6] == 4);
+    sum = 0;
+    for (std::size_t i = 2; i + 1 < sync_req.size(); ++i)
+        sum = static_cast<std::uint8_t>(sum + sync_req[i]);
+    assert(sync_req.back() == static_cast<std::uint8_t>(~sum));
+
+    // 4. Tracker: multi-turn rollover and fast motion without artificial jump lockouts.
     GelloTracker tracker{};
     assert(tracker.update(4090));
     assert(tracker.ticks == 4090);
@@ -115,22 +131,11 @@ int main() {
     assert(tracker.update(4095)); // -10 back across rollover
     assert(tracker.ticks == 4091);
 
-    // Single-sample glitch (> 100 ticks) is rejected and marks pending.
-    assert(!tracker.update(3500));
-    assert(tracker.pending);
-    assert(tracker.ticks == 4091);
-    // Returning to normal clears pending.
-    assert(tracker.update(4092));
+    // Fast large move (> 100 ticks) is accepted immediately via shortest-path unwrap.
+    assert(tracker.update(3500));
     assert(!tracker.pending);
-    assert(tracker.ticks == 4088);
-
-    // Real large jump confirmed by second read within +-20 ticks is accepted.
-    assert(!tracker.update(3500));
-    assert(tracker.pending);
-    assert(tracker.update(3505));
-    assert(!tracker.pending);
-    assert(tracker.raw == 3505);
-    assert(tracker.ticks == 4088 + (3505 - 4092));
+    assert(tracker.raw == 3500);
+    assert(tracker.ticks == 4091 + (3500 - 4095));
 
     // 5. Serial port enumeration runs without throwing.
     const auto ports = list_serial_ports();

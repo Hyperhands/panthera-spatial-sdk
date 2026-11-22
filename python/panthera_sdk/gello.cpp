@@ -21,7 +21,8 @@ void bind_gello(py::module_& m) {
         .def_readwrite("baud", &GelloConfig::baud)
         .def_readwrite("group_mask", &GelloConfig::group_mask)
         .def_readwrite("servo_timeout_ms", &GelloConfig::servo_timeout_ms)
-        .def_readwrite("reconnect_interval_ms", &GelloConfig::reconnect_interval_ms);
+        .def_readwrite("reconnect_interval_ms", &GelloConfig::reconnect_interval_ms)
+        .def_readwrite("use_sync_read", &GelloConfig::use_sync_read);
 
     py::class_<GelloServoSample>(m, "GelloServoSample")
         .def_readonly("id", &GelloServoSample::id)
@@ -44,18 +45,19 @@ void bind_gello(py::module_& m) {
     py::class_<GelloReader>(m, "GelloReader", py::release_gil_before_calling_cpp_dtor{})
         .def(py::init<GelloConfig>(), "config"_a, py::call_guard<py::gil_scoped_release>())
         .def(py::init([](std::string port, std::uint32_t baud, std::uint8_t group_mask,
-                         int servo_timeout_ms, int reconnect_interval_ms) {
+                         int servo_timeout_ms, int reconnect_interval_ms, bool use_sync_read) {
                  GelloConfig cfg;
                  cfg.port = std::move(port);
                  cfg.baud = baud;
                  cfg.group_mask = group_mask;
                  cfg.servo_timeout_ms = servo_timeout_ms;
                  cfg.reconnect_interval_ms = reconnect_interval_ms;
+                 cfg.use_sync_read = use_sync_read;
                  py::gil_scoped_release release;
                  return std::make_unique<GelloReader>(std::move(cfg));
              }),
              "port"_a, "baud"_a = 1000000, "group_mask"_a = 0x03, "servo_timeout_ms"_a = 5,
-             "reconnect_interval_ms"_a = 500)
+             "reconnect_interval_ms"_a = 500, "use_sync_read"_a = true)
         .def("poll", &GelloReader::poll, py::call_guard<py::gil_scoped_release>())
         .def("is_open", &GelloReader::is_open)
         .def("close", &GelloReader::close, py::call_guard<py::gil_scoped_release>())

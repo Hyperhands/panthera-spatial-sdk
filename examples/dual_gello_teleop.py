@@ -2,8 +2,8 @@
 
 Reads Feetech STS/SCS servos (left IDs 1..7, right IDs 11..17) over a single
 USB-to-serial adapter via astrial (sdk.GelloReader), computes joint & five-finger
-hand targets on the host, and streams them to sdk.DualArm (500 Hz acados QP
-with joint limits, rate limits, gravity compensation, and self-collision safety).
+hand targets on the host, and streams them directly to sdk.DualArm via 500 Hz
+joint-space MIT + gravity compensation (matching dual-gello / Panthera-DualNXP-Hyperhands).
 """
 
 import argparse
@@ -32,8 +32,8 @@ DEFAULT_PROFILE = {
         "grip_min": -252.0,
         "grip_max": 302.0,
         "grip_inverted": False,
-        "close_at": 70.0,
-        "hand_scale": [0.75, 20.0 / 18.0, 55.0 / 58.0, 1.0, 1.0, 1.0],
+        "close_at": 100.0,
+        "hand_scale": [0.70, 0.95, 0.85, 0.85, 0.85, 0.85],
         "hand_offset_deg": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     },
     "right": {
@@ -42,8 +42,8 @@ DEFAULT_PROFILE = {
         "grip_min": 1508.0,
         "grip_max": 2057.0,
         "grip_inverted": False,
-        "close_at": 70.0,
-        "hand_scale": [0.75, 20.0 / 18.0, 55.0 / 58.0, 1.0, 1.0, 1.0],
+        "close_at": 100.0,
+        "hand_scale": [0.70, 0.95, 0.85, 0.85, 0.85, 0.85],
         "hand_offset_deg": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     },
 }
@@ -121,32 +121,25 @@ def hand_angles_rad(percent, side_cfg):
 
 
 class StartupZeroCapture:
-    """Capture a stable startup zero pose (span <= 8 ticks for >= 0.5 s & >= 10 scans)."""
+    """Capture startup zero quickly (average first 5 valid scans, no stillness lockout)."""
 
     def __init__(self, side_cfg, zero_mode):
         self.cfg = side_cfg
         self.zero_mode = zero_mode
         self.zero = None
-        self.stable_at = None
         self.last_scan = None
         self.count = 0
-        self.minimum = None
-        self.maximum = None
         self.total = None
 
     def reset(self):
-        self.stable_at = None
         self.last_scan = None
         self.count = 0
-        self.minimum = None
-        self.maximum = None
         self.total = None
 
     def update(self, now, scan, ticks_6, raw_6, fresh):
         if self.zero is not None:
             return self.zero
         if not fresh:
-            self.reset()
             return None
         if self.zero_mode == "saved":
             saved = np.asarray(self.cfg["zero_raw_ticks"], dtype=float)
@@ -156,28 +149,16 @@ class StartupZeroCapture:
             )
             return self.zero
         if self.count == 0:
-            self.stable_at = now
             self.last_scan = scan
             self.count = 1
-            self.minimum = ticks_6.copy()
-            self.maximum = ticks_6.copy()
             self.total = ticks_6.copy()
             return None
         if scan == self.last_scan:
             return None
         self.last_scan = scan
-        self.minimum = np.minimum(self.minimum, ticks_6)
-        self.maximum = np.maximum(self.maximum, ticks_6)
-        if np.any(self.maximum - self.minimum > 8.0):
-            self.stable_at = now
-            self.count = 1
-            self.minimum = ticks_6.copy()
-            self.maximum = ticks_6.copy()
-            self.total = ticks_6.copy()
-            return None
         self.total += ticks_6
         self.count += 1
-        if now - self.stable_at >= 0.5 and self.count >= 10:
+        if self.count >= 5:
             self.zero = self.total / float(self.count)
             return self.zero
         return None
@@ -694,7 +675,13 @@ def run_monitor(args):
         else:
             port_label = resolve_port(args.port)
             gello = stack.enter_context(
-                sdk.GelloReader(port=port_label, baud=args.baud, group_mask=group_mask)
+                sdk.GelloReader(
+                    port=port_label,
+                    baud=args.baud,
+                    group_mask=group_mask,
+                    servo_timeout_ms=args.servo_timeout_ms,
+                    use_sync_read=not args.no_sync_read,
+                )
             )
 
         if args.headless:
@@ -811,10 +798,8 @@ def run_headless_verification(arm, plant, gello, profile, config, send_hands):
         err_l = float(np.max(np.abs(state.measured[:6] - goal_left)))
         err_r = float(np.max(np.abs(state.measured[6:] - goal_right)))
         if err_l < 0.03 and err_r < 0.03:
-            c = sdk.collision_state(state.measured)
             print(
-                f"headless: tracked dual pose err_l={err_l:.4f} err_r={err_r:.4f} rad "
-                f"inter_arm={c.inter_arm:.4f} m qp_time={state.qp_time * 1e6:.1f} us",
+                f"headless: tracked dual pose err_l={err_l:.4f} err_r={err_r:.4f} rad",
                 flush=True,
             )
             break
@@ -847,6 +832,7 @@ def run_teleop(args):
     stale_s = args.stale_ms * 1e-3
 
     config = sdk.ControlConfig()
+    config.bypass_qp = True
     config.joints.max_speed = np.full(12, float(args.max_speed))
     config.joints.max_acceleration = np.full(12, float(args.max_accel))
     bounds_lo = np.asarray(config.joints.lower, dtype=float)
@@ -936,6 +922,8 @@ def run_teleop(args):
                     port=port_label,
                     baud=args.baud,
                     group_mask=group_mask,
+                    servo_timeout_ms=args.servo_timeout_ms,
+                    use_sync_read=not args.no_sync_read,
                 )
             )
 
@@ -987,6 +975,7 @@ def run_teleop(args):
         last_ui = 0.0
         next_print = 0.0
         mock_demo_t0 = None
+        last_valid_ticks = [None, None]
         dt_loop = 1.0 / max(20.0, float(args.hz))
 
         try:
@@ -1005,7 +994,7 @@ def run_teleop(args):
                             state = arm.state()
                             on_rezero()
                             was_stopped = False
-                            print("[OK] DualArm re-enabled -> hold GELLO still to re-zero", flush=True)
+                            print("[OK] DualArm re-enabled -> re-zeroing", flush=True)
                         except Exception as exc:
                             print(f"[WARN] Re-enable failed: {exc}", flush=True)
 
@@ -1042,12 +1031,35 @@ def run_teleop(args):
                         arm_fresh, hand_fresh, ticks_6, raw_6, trig_ticks = extract_group(
                             snap, i, stale_s
                         )
-                        zero = captures[i].update(now, snap.scans, ticks_6, raw_6, arm_fresh)
+                        grp = snap.servos[i * 7 : i * 7 + 6]
+                        if last_valid_ticks[i] is None:
+                            if all(s.valid for s in grp):
+                                last_valid_ticks[i] = ticks_6.copy()
+                        else:
+                            for j, s in enumerate(grp):
+                                if s.valid and np.isfinite(s.age_s) and s.age_s < stale_s:
+                                    last_valid_ticks[i][j] = float(s.ticks)
+                        effective_ticks = (
+                            last_valid_ticks[i] if last_valid_ticks[i] is not None else ticks_6
+                        )
+                        any_fresh = snap.connected and any(
+                            s.valid and np.isfinite(s.age_s) and s.age_s < stale_s for s in grp
+                        )
+
                         st = {"status": "ZEROING"}
                         if hand_fresh:
                             pct = grasp_percent(trig_ticks, profile[name])
                             st["grasp_pct"] = pct
                             st["hand_deg"] = np.rad2deg(hand_angles_rad(pct, profile[name]))
+                            if hand_due:
+                                try:
+                                    arm.set_hand_target(
+                                        side, hand_angles_rad(pct, profile[name]), 20
+                                    )
+                                except Exception as exc:
+                                    print(f"[WARN] set_hand_target({name}): {exc}", flush=True)
+
+                        zero = captures[i].update(now, snap.scans, effective_ticks, raw_6, arm_fresh)
                         if zero is None:
                             side_status.append(f"{name}=ZEROING")
                             ui_states[i] = st
@@ -1059,11 +1071,11 @@ def run_teleop(args):
                             print(f"[{name}] zero locked -> teleop engaged", flush=True)
 
                         factor = np.asarray(profile[name]["factor"], dtype=float)
-                        q = anchors[i] + (ticks_6 - zero) * RAD_PER_TICK * factor
+                        q = anchors[i] + (effective_ticks - zero) * RAD_PER_TICK * factor
                         q_clipped = np.clip(q, bounds_lo[i * 6 : i * 6 + 6], bounds_hi[i * 6 : i * 6 + 6])
                         st["q_deg"] = np.rad2deg(q_clipped)
 
-                        if arm_fresh:
+                        if any_fresh:
                             if was_stale[i]:
                                 was_stale[i] = False
                                 print(f"[{name}] GELLO input recovered -> resuming", flush=True)
@@ -1076,7 +1088,7 @@ def run_teleop(args):
                         else:
                             if not was_stale[i]:
                                 was_stale[i] = True
-                                print(f"[{name}] GELLO input stale -> holding pose", flush=True)
+                                print(f"[{name}] GELLO disconnected -> holding pose", flush=True)
                             try:
                                 arm.set_joint_target(side, state.reference[i * 6 : i * 6 + 6])
                             except Exception:
@@ -1085,12 +1097,6 @@ def run_teleop(args):
                             st["status"] = "HOLD"
 
                         ui_states[i] = st
-
-                        if hand_due and hand_fresh:
-                            try:
-                                arm.set_hand_target(side, hand_angles_rad(st["grasp_pct"], profile[name]), 20)
-                            except Exception:
-                                pass
 
                     if hand_due:
                         last_hand = now
@@ -1116,20 +1122,26 @@ def run_teleop(args):
                     viewer.sync()
 
                 if servo_ui is not None and now - last_ui >= 0.033:
-                    c = sdk.collision_state(state.measured)
                     arm_summary = (
-                        f"inter_arm={c.inter_arm:.3f}m  margin={c.hard_margin:.3f}m  "
-                        f"qp={state.qp_time * 1e6:.0f}us"
+                        f"direct-MIT  cycles={state.cycles}  "
+                        f"{'ENABLED' if state.enabled else 'STOPPED'}"
                     )
                     servo_ui.update(snap, stale_s, ui_states, arm_summary=arm_summary)
                     last_ui = now
 
                 if servo_ui is None and now >= next_print:
-                    c = sdk.collision_state(state.measured)
+                    counts = []
+                    for i in active_sides:
+                        grp = snap.servos[i * 7 : i * 7 + 6]
+                        n_ok = sum(
+                            1 for s in grp if s.valid and np.isfinite(s.age_s) and s.age_s < stale_s
+                        )
+                        grip = ui_states[i].get("grasp_pct")
+                        g_txt = f" grip={grip:.0f}%" if grip is not None else ""
+                        counts.append(f"{SIDE_NAMES[i]}={ui_states[i]['status']}({n_ok}/6{g_txt})")
                     print(
-                        f"gello={snap.scan_hz:5.1f}Hz {' '.join(side_status)} "
-                        f"inter_arm={c.inter_arm:.4f}m hard_margin={c.hard_margin:.4f}m "
-                        f"qp={state.qp_time * 1e6:.1f}us",
+                        f"gello={snap.scan_hz:5.1f}Hz (ok={snap.replies} to={snap.timeouts} bad={snap.bad}) "
+                        f"{' '.join(counts)} direct-MIT cycles={state.cycles}",
                         flush=True,
                     )
                     next_print = now + 1.0
@@ -1186,17 +1198,33 @@ def main():
     p.add_argument(
         "--max-speed",
         type=float,
-        default=0.5,
-        help="joint velocity limit in rad/s passed to DualArm QP (default 0.5)",
+        default=3.5,
+        help="joint velocity limit in rad/s (default 3.5)",
     )
     p.add_argument(
         "--max-accel",
         type=float,
-        default=4.0,
-        help="joint acceleration limit in rad/s^2 passed to DualArm QP (default 4.0)",
+        default=25.0,
+        help="joint acceleration limit in rad/s^2 (default 25.0)",
     )
-    p.add_argument("--stale-ms", type=float, default=50.0, help="GELLO stale timeout in ms (default 50)")
-    p.add_argument("--hz", type=float, default=120.0, help="Python control loop rate in Hz (default 120)")
+    p.add_argument(
+        "--stale-ms",
+        type=float,
+        default=150.0,
+        help="GELLO stale timeout in ms (default 150, matching dual-gello)",
+    )
+    p.add_argument(
+        "--servo-timeout-ms",
+        type=int,
+        default=5,
+        help="per-servo serial read timeout in ms (default 5)",
+    )
+    p.add_argument(
+        "--no-sync-read",
+        action="store_true",
+        help="disable Feetech SYNC_READ (0x82) and poll servos one by one",
+    )
+    p.add_argument("--hz", type=float, default=250.0, help="Python control loop rate in Hz (default 250)")
     p.add_argument(
         "--viewer",
         action="store_true",

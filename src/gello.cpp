@@ -62,6 +62,22 @@ std::array<std::uint8_t, 8> gello_read_request(std::uint8_t id) noexcept {
     return out;
 }
 
+std::vector<std::uint8_t> gello_sync_read_request(const std::vector<std::uint8_t>& ids) {
+    std::vector<std::uint8_t> out;
+    out.reserve(ids.size() + 8);
+    out.push_back(0xff);
+    out.push_back(0xff);
+    out.push_back(0xfe); // Broadcast ID
+    out.push_back(static_cast<std::uint8_t>(ids.size() + 4));
+    out.push_back(0x82); // INST_SYNC_READ
+    out.push_back(56);   // Present Position
+    out.push_back(4);    // 2B position + 2B velocity
+    for (std::uint8_t id : ids)
+        out.push_back(id);
+    out.push_back(feetech_checksum(out.data() + 2, out.size() - 2));
+    return out;
+}
+
 void GelloParser::reset() noexcept { used = 0; }
 
 bool GelloParser::feed(std::uint8_t byte, GelloRawSample& out) noexcept {
@@ -99,14 +115,16 @@ bool GelloParser::feed(std::uint8_t byte, GelloRawSample& out) noexcept {
             ++bad;
             continue;
         }
-        // Position + velocity replies have LEN=6 and error=0. Read-request
-        // echoes have LEN=4, so they cannot masquerade as feedback.
-        const bool valid = length == 6 && bytes[4] == 0 && gello_servo_index(bytes[2]) >= 0;
+        // Position + velocity replies have LEN=6. Read-request echoes have
+        // LEN=4 (or SYNC_READ LEN=N+4 with ID=0xFE), so they cannot masquerade
+        // as feedback. Accept replies even if a non-fatal status warning bit
+        // is set in bytes[4], matching gello_compare_driver.
+        const bool valid = length == 6 && gello_servo_index(bytes[2]) >= 0;
         if (valid) {
             out.id = bytes[2];
             const int pos = signed_magnitude(bytes.data() + 5);
             out.raw = static_cast<std::uint16_t>((pos % 4096 + 4096) % 4096);
-            out.velocity = signed_magnitude(bytes.data() + 7);
+            out.velocity = bytes[4] == 0 ? signed_magnitude(bytes.data() + 7) : 0;
         } else {
             ++bad;
         }
@@ -128,14 +146,6 @@ bool GelloTracker::update(std::uint16_t raw_pos) noexcept {
         return true;
     }
     const int d = wrap_delta(raw_pos, raw);
-    if (d > 100 || d < -100) {
-        const int confirm = wrap_delta(raw_pos, candidate);
-        if (!pending || confirm > 20 || confirm < -20) {
-            candidate = raw_pos;
-            pending = true;
-            return false;
-        }
-    }
     if ((d > 0 && ticks > std::numeric_limits<std::int32_t>::max() - d) ||
         (d < 0 && ticks < std::numeric_limits<std::int32_t>::min() - d))
         return false;
@@ -172,9 +182,9 @@ struct GelloReader::Impl {
     std::mutex rx_mutex;
     std::condition_variable rx_cv;
     GelloParser parser;
-    std::uint8_t expected_id{};
-    bool got_reply{};
-    GelloRawSample pending_reply{};
+    std::uint16_t expected_mask{};
+    std::uint16_t received_mask{};
+    std::array<GelloRawSample, kGelloServoCount> pending_replies{};
 
     // Synchronizes published servo state with poll().
     mutable std::mutex state_mutex;
@@ -223,13 +233,22 @@ struct GelloReader::Impl {
         serial->on_data([this](std::span<const std::uint8_t> data) {
             std::lock_guard lock(rx_mutex);
             GelloRawSample sample{};
+            bool changed = false;
             for (std::uint8_t b : data) {
-                if (parser.feed(b, sample) && sample.id == expected_id && !got_reply) {
-                    pending_reply = sample;
-                    got_reply = true;
-                    rx_cv.notify_one();
+                if (parser.feed(b, sample)) {
+                    const int idx = gello_servo_index(sample.id);
+                    if (idx >= 0) {
+                        const std::uint16_t bit = static_cast<std::uint16_t>(1u << idx);
+                        if ((expected_mask & bit) != 0 && (received_mask & bit) == 0) {
+                            pending_replies[static_cast<std::size_t>(idx)] = sample;
+                            received_mask |= bit;
+                            changed = true;
+                        }
+                    }
                 }
             }
+            if (changed && (received_mask & expected_mask) == expected_mask)
+                rx_cv.notify_one();
         });
 
         running.store(true);
@@ -252,13 +271,14 @@ struct GelloReader::Impl {
 
     bool read_one(std::size_t index) {
         const std::uint8_t id = gello_servo_id(index);
+        const std::uint16_t bit = static_cast<std::uint16_t>(1u << index);
         const auto req = gello_read_request(id);
         {
             std::lock_guard lock(rx_mutex);
             parser.reset();
             parser.bad = 0;
-            expected_id = id;
-            got_reply = false;
+            expected_mask = bit;
+            received_mask = 0;
         }
         const auto timeout = std::chrono::milliseconds(config.servo_timeout_ms);
         auto wr = serial->write(std::span<const std::uint8_t>(req.data(), req.size()), timeout);
@@ -272,13 +292,15 @@ struct GelloReader::Impl {
         std::uint32_t bad_bytes = 0;
         {
             std::unique_lock lock(rx_mutex);
-            ok = rx_cv.wait_for(lock, timeout, [this]() { return got_reply || !running.load(); });
-            if (ok && got_reply)
-                sample = pending_reply;
+            ok = rx_cv.wait_for(lock, timeout, [this, bit]() {
+                return (received_mask & bit) != 0 || !running.load();
+            });
+            if (ok && (received_mask & bit) != 0)
+                sample = pending_replies[index];
             else
                 ok = false;
             bad_bytes = parser.bad;
-            expected_id = 0;
+            expected_mask = 0;
         }
         if (!ok) {
             std::lock_guard lock(state_mutex);
@@ -301,11 +323,85 @@ struct GelloReader::Impl {
         return accepted;
     }
 
+    std::size_t read_group_sync(const std::vector<std::size_t>& indices) {
+        std::vector<std::uint8_t> ids;
+        ids.reserve(indices.size());
+        std::uint16_t mask = 0;
+        for (std::size_t idx : indices) {
+            ids.push_back(gello_servo_id(idx));
+            mask |= static_cast<std::uint16_t>(1u << idx);
+        }
+        const auto req = gello_sync_read_request(ids);
+        {
+            std::lock_guard lock(rx_mutex);
+            parser.reset();
+            parser.bad = 0;
+            expected_mask = mask;
+            received_mask = 0;
+        }
+        const auto timeout = std::chrono::milliseconds(std::max(config.servo_timeout_ms, 8));
+        auto wr = serial->write(std::span<const std::uint8_t>(req.data(), req.size()), timeout);
+        if (!wr) {
+            std::lock_guard lock(state_mutex);
+            timeouts += static_cast<std::uint32_t>(indices.size());
+            return 0;
+        }
+        std::uint16_t got_mask = 0;
+        std::array<GelloRawSample, kGelloServoCount> batch{};
+        std::uint32_t bad_bytes = 0;
+        {
+            std::unique_lock lock(rx_mutex);
+            rx_cv.wait_for(lock, timeout, [this, mask]() {
+                return (received_mask & mask) == mask || !running.load();
+            });
+            got_mask = received_mask & mask;
+            batch = pending_replies;
+            bad_bytes = parser.bad;
+            expected_mask = 0;
+        }
+        const auto now = Clock::now();
+        std::size_t got_count = 0;
+        std::vector<std::size_t> retry_indices;
+        {
+            std::lock_guard lock(state_mutex);
+            bad += bad_bytes;
+            for (std::size_t idx : indices) {
+                const std::uint16_t bit = static_cast<std::uint16_t>(1u << idx);
+                if ((got_mask & bit) == 0) {
+                    ++timeouts;
+                    continue;
+                }
+                ++got_count;
+                if (trackers[idx].update(batch[idx].raw)) {
+                    velocities[idx] = batch[idx].velocity;
+                    stamps[idx] = now;
+                    has_stamp[idx] = true;
+                    ++replies;
+                } else {
+                    ++jumps;
+                    if (trackers[idx].pending)
+                        retry_indices.push_back(idx);
+                }
+            }
+        }
+        for (std::size_t idx : retry_indices) {
+            if (!running.load() || !serial->is_open())
+                break;
+            (void)read_one(idx);
+        }
+        return got_count;
+    }
+
     void loop() {
         std::vector<std::size_t> order;
         order.reserve(kGelloServoCount);
         const bool left_on = (config.group_mask & 0x01u) != 0;
         const bool right_on = (config.group_mask & 0x02u) != 0;
+        std::vector<std::vector<std::size_t>> groups;
+        if (left_on)
+            groups.push_back({0, 1, 2, 3, 4, 5, 6});
+        if (right_on)
+            groups.push_back({7, 8, 9, 10, 11, 12, 13});
         for (std::size_t i = 0; i < 7; ++i) {
             if (left_on)
                 order.push_back(i);
@@ -313,6 +409,8 @@ struct GelloReader::Impl {
                 order.push_back(7 + i);
         }
 
+        bool use_sync = config.use_sync_read;
+        int empty_sync_scans = 0;
         auto rate_t0 = Clock::now();
         std::uint32_t rate_scans = 0;
 
@@ -323,17 +421,32 @@ struct GelloReader::Impl {
                 continue;
             }
             connected.store(true);
-            for (std::size_t idx : order) {
-                if (!running.load() || !serial->is_open())
-                    break;
-                if (!read_one(idx)) {
-                    bool pending = false;
-                    {
-                        std::lock_guard lock(state_mutex);
-                        pending = trackers[idx].pending;
+            if (use_sync) {
+                std::size_t total_got = 0;
+                for (const auto& grp : groups) {
+                    if (!running.load() || !serial->is_open())
+                        break;
+                    total_got += read_group_sync(grp);
+                }
+                if (total_got == 0) {
+                    if (++empty_sync_scans >= 3)
+                        use_sync = false; // Auto-fallback for servos without SYNC_READ (0x82).
+                } else {
+                    empty_sync_scans = 0;
+                }
+            } else {
+                for (std::size_t idx : order) {
+                    if (!running.load() || !serial->is_open())
+                        break;
+                    if (!read_one(idx)) {
+                        bool pending = false;
+                        {
+                            std::lock_guard lock(state_mutex);
+                            pending = trackers[idx].pending;
+                        }
+                        if (pending && running.load() && serial->is_open())
+                            (void)read_one(idx);
                     }
-                    if (pending && running.load() && serial->is_open())
-                        (void)read_one(idx);
                 }
             }
             const auto now = Clock::now();

@@ -13,6 +13,7 @@ constexpr std::size_t kGelloServoCount = 14;
 int gello_servo_index(std::uint8_t id) noexcept;
 std::uint8_t gello_servo_id(std::size_t index) noexcept;
 std::array<std::uint8_t, 8> gello_read_request(std::uint8_t id) noexcept;
+std::vector<std::uint8_t> gello_sync_read_request(const std::vector<std::uint8_t>& ids);
 
 struct GelloRawSample {
     std::uint8_t id{};
@@ -57,6 +58,7 @@ struct GelloConfig {
     std::uint8_t group_mask = 0x03;
     int servo_timeout_ms = 5;
     int reconnect_interval_ms = 500;
+    bool use_sync_read = true;
 };
 
 struct GelloServoSample {

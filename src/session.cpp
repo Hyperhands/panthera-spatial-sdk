@@ -96,7 +96,7 @@ class SessionPeer {
             q.operation = op;
             q.control_lease = lease;
             q.expected_policy_revision = revision;
-            q.target_mask = op == 10 ? 500u << 16 : 0;
+            q.target_mask = op == 10 ? 500u << 16 : op == 8 ? 0x102u : 0;
             request_size = encode(q, operation_request_value_encode, request);
             request_id = q.operation_id;
             message = OPERATION_REQUEST_MESSAGE_ID;
@@ -114,6 +114,9 @@ class SessionPeer {
             q.hand_state_period_us = 10000;
             std::fill_n(q.force_feedback_gain, 6, 1.f);
             std::fill_n(q.hand_position_current_limit_ma, 6, 1000u);
+            const std::array<std::uint32_t, 6> soft_ma{500u, 500u, 500u, 300u, 300u, 300u};
+            std::copy(soft_ma.begin(), soft_ma.end(), q.hand_soft_current_ma);
+            q.hand_control_feedforward_ma = 500u;
             request_size = encode(q, configure_request_value_encode, request);
             request_id = q.operation_id;
             message = CONFIGURE_REQUEST_MESSAGE_ID;
@@ -499,6 +502,7 @@ struct DualSession::Impl {
         stage(1, deadline, check_interrupt);
         stage(13, deadline, check_interrupt);
         stage(0, deadline, check_interrupt);
+        stage(8, deadline, check_interrupt);
         feedback(deadline, check_interrupt, true);
         for (auto p : peers)
             p->calibrate();

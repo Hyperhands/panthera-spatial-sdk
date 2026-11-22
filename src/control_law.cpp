@@ -90,7 +90,17 @@ void ControlLaw::observe(const JointVector& q) {
 }
 void ControlLaw::reset(const JointVector& q) {
     state = {};
-    observe(q);
+    if (config_.bypass_qp) {
+        if (!q.allFinite())
+            throw std::runtime_error("Nonfinite joint feedback");
+        state.measured = q;
+        for (unsigned side = 0; side < 2; ++side) {
+            arms_[side] = arm_geometry(side, q.segment<6>(6 * side));
+            state.tcp[side] = arms_[side].tcp();
+        }
+    } else {
+        observe(q);
+    }
     state.reference = nominal_ = q;
     interpolated_ = state.tcp;
     previous_mode_.fill(TargetType::joint);
@@ -112,6 +122,45 @@ void ControlLaw::freeze() {
     interpolated_ = state.tcp;
 }
 void ControlLaw::step(const JointVector& measured, const std::array<ArmTarget, 2>& targets) {
+    if (config_.bypass_qp) {
+        state.warning.clear();
+        if (!measured.allFinite())
+            throw std::runtime_error("Nonfinite joint feedback");
+        state.measured = measured;
+        state.frozen = false;
+        state.consecutive_failures = 0;
+        state.qp_time = {};
+        for (size_t s = 0; s < 2; ++s) {
+            const int idx = 6 * static_cast<int>(s);
+            const auto& t = targets[s];
+            for (int j = 0; j < 6; ++j) {
+                const int a = idx + j;
+                const double goal =
+                    std::clamp(t.joint[j], config_.joints.lower[a], config_.joints.upper[a]);
+                const double err = goal - state.reference[a];
+                const double vmax = config_.joints.max_speed[a];
+                const double amax = config_.joints.max_acceleration[a];
+                const double reach = vmax * control_dt;
+                if (std::abs(err) <= reach) {
+                    state.reference[a] = goal;
+                    state.velocity[a] = 0.;
+                } else {
+                    const double dir = err > 0. ? 1. : -1.;
+                    const double brake_v = std::min(vmax, std::sqrt(2. * amax * std::abs(err)));
+                    const double dv = amax * control_dt;
+                    const double v =
+                        state.velocity[a] + std::clamp(dir * brake_v - state.velocity[a], -dv, dv);
+                    state.velocity[a] = v;
+                    state.reference[a] += v * control_dt;
+                    if ((goal - state.reference[a]) * dir < 0.) {
+                        state.reference[a] = goal;
+                        state.velocity[a] = 0.;
+                    }
+                }
+            }
+        }
+        return;
+    }
     const auto deadline = ServoClock::now() + std::chrono::milliseconds(2);
     state.warning.clear();
     observe(measured);

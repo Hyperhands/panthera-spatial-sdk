@@ -18,6 +18,8 @@ struct ControlConfig {
     double translation_speed = .2, rotation_speed = 1.2;
     // When unset, retain the per-axis stop at twice the configured lead.
     std::optional<double> tracking_stop_rad;
+    // Direct joint-space MIT mapping (no QP, no collision/lead freeze), matching dual-gello.
+    bool bypass_qp = false;
 };
 struct ControlState {
     bool enabled{}, frozen{}, expert{};

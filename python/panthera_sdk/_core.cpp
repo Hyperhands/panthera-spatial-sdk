@@ -50,7 +50,8 @@ PYBIND11_MODULE(_core, m) {
         .def_readwrite("smoothing", &ControlConfig::smoothing)
         .def_readwrite("posture_weight", &ControlConfig::posture_weight)
         .def_readwrite("translation_speed", &ControlConfig::translation_speed)
-        .def_readwrite("rotation_speed", &ControlConfig::rotation_speed);
+        .def_readwrite("rotation_speed", &ControlConfig::rotation_speed)
+        .def_readwrite("bypass_qp", &ControlConfig::bypass_qp);
     py::class_<ArmGeometry>(m, "ArmGeometry")
         .def_property_readonly(
             "tcp", [](const ArmGeometry& g) { return Eigen::Matrix4d(g.tcp().matrix()); })

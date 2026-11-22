@@ -72,6 +72,8 @@ class SessionBoard(TelemetryBoard):
             return -1
         if op == 13 and req["target_mask"] == 0:
             self.polling = True
+        elif op == 8 and (req["target_mask"] & 255) in (1, 2, 3):
+            return 0
         elif op == 3:
             if (not self.polling or self.mit is None or self.mask != 63 or time.monotonic() - self.arm_at >= .020
                     or any(abs(self.mit[5*i] - q) > math.radians(2)
