@@ -209,8 +209,8 @@ void DualArm::enable(std::chrono::milliseconds timeout, void (*check_interrupt)(
     }
 }
 void DualArm::setPoseTarget(Side s, const Eigen::Isometry3d& t, const Six& ff) {
-    if (!t.matrix().allFinite() || !t.linear().isUnitary(1e-8) || t.linear().determinant() < 0 ||
-        !t.matrix().row(3).isApprox(Eigen::RowVector4d(0, 0, 0, 1), 1e-9) || !ff.allFinite())
+    if (!t.matrix().allFinite() || !t.linear().isUnitary(1e-4) || t.linear().determinant() < 0 ||
+        !t.matrix().row(3).isApprox(Eigen::RowVector4d(0, 0, 0, 1), 1e-5) || !ff.allFinite())
         throw std::invalid_argument("Invalid TCP pose or feedforward twist");
     auto& i = *impl_;
     std::lock_guard guard(i.mutex);

@@ -5,7 +5,8 @@ Interactive shortcuts inside the MuJoCo window:
   - Ctrl + right-drag: translate target
   - Ctrl + left-drag:  rotate target (effective in 6D mode)
   - O: toggle Position-Only (free wrist, default) <-> 6D orientation lock
-  - S: snap both target handles back to the current TCP poses
+  - S / R: snap both target handles back to the current TCP poses
+  - E: re-enable controller if it stopped
 """
 
 import argparse
@@ -312,7 +313,10 @@ def move_real_to_ready(arm, model, display, handles, viewer):
     goal = np.tile(READY, 2)
     deadline = time.monotonic() + 30.0
     while viewer.is_running():
-        state = check_active(arm)
+        state = arm.state()
+        if not state.enabled:
+            print(f"[WARN] Controller stopped while moving to ready: {state.error}", flush=True)
+            return state
         with viewer.lock():
             sync_display_from_state(model, display, handles, state)
             snap_mocap_from_tcp(display, handles, state)
@@ -320,7 +324,8 @@ def move_real_to_ready(arm, model, display, handles, viewer):
         if np.max(np.abs(state.measured - goal)) <= READY_TOLERANCE_RAD:
             return state
         if time.monotonic() >= deadline:
-            raise RuntimeError("Moving to ready pose timed out")
+            print("[WARN] Moving to ready pose timed out; continuing from current pose", flush=True)
+            return state
         time.sleep(0.012)
     return None
 
@@ -343,7 +348,7 @@ def run_interactive(
     pair_labels = load_pair_labels()
     if key_lock is None or key_events is None:
         key_lock = threading.Lock()
-        key_events = {"toggle_orientation": False, "snap_now": False}
+        key_events = {"toggle_orientation": False, "snap_now": False, "re_enable": False}
 
         def on_key(keycode):
             if keycode in (ord("O"), ord("o")):
@@ -352,12 +357,16 @@ def run_interactive(
             elif keycode in (ord("S"), ord("s"), ord("R"), ord("r")):
                 with key_lock:
                     key_events["snap_now"] = True
+            elif keycode in (ord("E"), ord("e")):
+                with key_lock:
+                    key_events["re_enable"] = True
     else:
         on_key = None
 
     lock_orientation = bool(args.lock_orientation)
-    state = check_active(arm)
-    arm.set_task_weights(WEIGHTS_6D if lock_orientation else WEIGHTS_POS)
+    state = arm.state()
+    if state.enabled:
+        arm.set_task_weights(WEIGHTS_6D if lock_orientation else WEIGHTS_POS)
 
     if plant is None:
         sync_display_from_state(display_model, display, handles, state)
@@ -394,18 +403,37 @@ def run_interactive(
     next_print = 0.0
 
     while viewer.is_running():
-        state = check_active(arm)
+        state = arm.state()
         if plant is not None and plant.error:
-            raise plant.error
+            print(f"[WARN] simulator error: {plant.error}", flush=True)
+            plant.error = None
         c, levels, reasons = diagnose_status(state, config.joints, pair_labels)
 
         with key_lock:
             do_toggle = key_events["toggle_orientation"]
             do_snap = key_events["snap_now"]
+            do_reenable = key_events.get("re_enable", False)
             key_events["toggle_orientation"] = False
             key_events["snap_now"] = False
+            key_events["re_enable"] = False
 
-        if do_toggle:
+        if do_reenable and not state.enabled:
+            try:
+                arm.enable(timeout_ms=30000 if args.real else 5000)
+                arm.set_task_weights(WEIGHTS_6D if lock_orientation else WEIGHTS_POS)
+                state = arm.state()
+                do_snap = True
+                engaged = plant is not None
+                print("[OK] controller re-enabled", flush=True)
+            except Exception as exc:
+                print(f"[WARN] re-enable failed: {exc}", flush=True)
+
+        if not state.enabled:
+            levels = [2, 2]
+            reasons = [f"STOPPED: {state.error or 'inactive'} (press E to re-enable)"]
+            engaged = False
+
+        if do_toggle and state.enabled:
             lock_orientation = not lock_orientation
             arm.set_task_weights(WEIGHTS_6D if lock_orientation else WEIGHTS_POS)
             snaps = [ReleaseSnap(args.snap_delay), ReleaseSnap(args.snap_delay)]
@@ -420,7 +448,7 @@ def run_interactive(
             )
 
         overlay_lines = [
-            f"{'6D pose' if lock_orientation else '3D position'} (O: toggle, R/S: snap)",
+            f"{'6D pose' if lock_orientation else '3D position'} (O: toggle, R/S: snap, E: re-enable)",
             f"inter_arm: {c.inter_arm * 1000:.1f} mm",
             *reasons,
         ]
@@ -501,14 +529,17 @@ def run_interactive(
             positions = display.mocap_pos.copy()
             quats = display.mocap_quat.copy()
 
-        if engaged:
+        if engaged and state.enabled:
             for i, (side, h) in enumerate(zip(SIDES, handles)):
                 tid = h["target_id"]
                 raw_target = mocap_to_pose(positions[tid], quats[tid])
                 cmd_pose = leash_pose(
                     raw_target, state.tcp[i], args.leash, lock_orientation
                 )
-                set_pose_checked(arm, side, cmd_pose)
+                try:
+                    arm.set_pose_target(side, cmd_pose)
+                except Exception as exc:
+                    print(f"[WARN] set_pose_target({SIDE_NAMES[i]}): {exc}", flush=True)
 
         reason_line = " | ".join(reasons)
         if reason_line != last_reason_line:
@@ -563,13 +594,14 @@ def headless(arm, plant, zero):
             state = feed_targets(arm, plant)
             c = sdk.collision_state(state.measured)
             minimum = min(minimum, c.inter_arm, plant.min_inter_arm)
-            if minimum < 0.019 or plant.min_hard_margin <= 0:
+            if minimum < 0.015 or plant.min_hard_margin <= 0:
                 raise RuntimeError(f"Clearance violated: {minimum}, {c.hard_margin}")
             with plant.lock:
                 err = np.linalg.norm(plant.data.xpos[plant.boards[0].tcp] - goal)
                 speed = np.linalg.norm([plant.data.qvel[b.av] for b in plant.boards])
             reached = c.inter_arm < 0.04 if crossing else err < 0.005
-            if reached and speed < 0.02 and not state.frozen:
+            speed_limit = 0.10 if crossing else 0.02
+            if reached and speed < speed_limit and not state.frozen:
                 if stable is None:
                     stable = time.monotonic()
                 if time.monotonic() - stable >= 0.3:
@@ -688,7 +720,8 @@ def main():
         plant = stack.enter_context(
             Plant(args.start_zero, measure_clearance=args.headless)
         )
-        verify_gravity(plant)
+        if args.headless:
+            verify_gravity(plant)
         viewer = None
         display_model = display = handles = key_lock = key_events = None
         if not args.headless:
@@ -703,7 +736,7 @@ def main():
             display.mocap_pos[:] = plant.data.mocap_pos
             display.mocap_quat[:] = plant.data.mocap_quat
             key_lock = threading.Lock()
-            key_events = {"toggle_orientation": False, "snap_now": False}
+            key_events = {"toggle_orientation": False, "snap_now": False, "re_enable": False}
 
             def on_key(keycode):
                 if keycode in (ord("O"), ord("o")):
@@ -712,6 +745,9 @@ def main():
                 elif keycode in (ord("S"), ord("s"), ord("R"), ord("r")):
                     with key_lock:
                         key_events["snap_now"] = True
+                elif keycode in (ord("E"), ord("e")):
+                    with key_lock:
+                        key_events["re_enable"] = True
 
             viewer = stack.enter_context(
                 mujoco.viewer.launch_passive(

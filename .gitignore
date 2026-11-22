@@ -4,4 +4,6 @@
 __pycache__/
 *.pyc
 .cache/
+.ruff_cache/
 compile_commands.json
+/validation/

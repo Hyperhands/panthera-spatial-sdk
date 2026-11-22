@@ -349,13 +349,14 @@ class ServoViewer:
     ACCENT = "#4da3ff"
     BAR_BG = "#2c3344"
 
-    def __init__(self, port_label, bounds_lo, bounds_hi, on_rezero=None):
+    def __init__(self, port_label, bounds_lo, bounds_hi, on_rezero=None, on_reenable=None):
         import tkinter as tk
 
         self.tk = tk
         self.bounds_lo = np.rad2deg(bounds_lo)
         self.bounds_hi = np.rad2deg(bounds_hi)
         self.on_rezero = on_rezero
+        self.on_reenable = on_reenable
         self.closed = False
 
         self.root = tk.Tk()
@@ -397,6 +398,22 @@ class ServoViewer:
                 font=("Monospace", 9, "bold"),
             )
             btn.pack(side="right")
+
+        if on_reenable is not None:
+            re_btn = tk.Button(
+                header,
+                text="Re-enable",
+                command=on_reenable,
+                bg="#2f394f",
+                fg=self.OK,
+                activebackground="#3d4b68",
+                activeforeground=self.OK,
+                relief="flat",
+                padx=10,
+                pady=2,
+                font=("Monospace", 9, "bold"),
+            )
+            re_btn.pack(side="right", padx=(0, 6))
 
         # Two side-by-side arm cards
         body = tk.Frame(self.root, bg=self.BG)
@@ -636,10 +653,18 @@ class TerminalServoViewer:
         pass
 
 
-def create_servo_viewer(port_label, bounds_lo, bounds_hi, on_rezero=None, force_terminal=False):
+def create_servo_viewer(
+    port_label, bounds_lo, bounds_hi, on_rezero=None, on_reenable=None, force_terminal=False
+):
     if not force_terminal:
         try:
-            return ServoViewer(port_label, bounds_lo, bounds_hi, on_rezero=on_rezero)
+            return ServoViewer(
+                port_label,
+                bounds_lo,
+                bounds_hi,
+                on_rezero=on_rezero,
+                on_reenable=on_reenable,
+            )
         except Exception as exc:
             print(f"GUI unavailable ({exc}); falling back to terminal servo viewer.", flush=True)
     return TerminalServoViewer(port_label)
@@ -931,6 +956,8 @@ def run_teleop(args):
 
         announced_zero = [False, False]
         was_stale = [False, False]
+        was_stopped = False
+        reenable_requested = [False]
 
         def on_rezero():
             for i in active_sides:
@@ -938,9 +965,14 @@ def run_teleop(args):
                 captures[i].reset()
                 announced_zero[i] = False
 
+        def on_reenable():
+            reenable_requested[0] = True
+
         # Open servo dashboard when --viewer is requested, or by default in non-real mode without MuJoCo.
         if args.viewer or (not args.real and not has_mujoco):
-            servo_ui = create_servo_viewer(port_label, bounds_lo, bounds_hi, on_rezero=on_rezero)
+            servo_ui = create_servo_viewer(
+                port_label, bounds_lo, bounds_hi, on_rezero=on_rezero, on_reenable=on_reenable
+            )
 
         print(
             f"Dual GELLO teleop active: mode={'real' if args.real else 'loopback'} "
@@ -960,9 +992,22 @@ def run_teleop(args):
         try:
             while (viewer is None or viewer.is_running()) and (servo_ui is None or servo_ui.is_running()):
                 now = time.monotonic()
-                state = check_active(arm)
+                state = arm.state()
                 if plant is not None and plant.error:
-                    raise plant.error
+                    print(f"[WARN] simulator error: {plant.error}", flush=True)
+                    plant.error = None
+
+                if reenable_requested[0]:
+                    reenable_requested[0] = False
+                    if not state.enabled:
+                        try:
+                            arm.enable(timeout_ms=30000 if args.real else 5000)
+                            state = arm.state()
+                            on_rezero()
+                            was_stopped = False
+                            print("[OK] DualArm re-enabled -> hold GELLO still to re-zero", flush=True)
+                        except Exception as exc:
+                            print(f"[WARN] Re-enable failed: {exc}", flush=True)
 
                 if args.mock_gello and not args.no_hand and all(announced_zero[i] for i in active_sides):
                     if mock_demo_t0 is None:
@@ -978,55 +1023,77 @@ def run_teleop(args):
                 side_status = []
                 ui_states = [{"status": "IDLE"}, {"status": "IDLE"}]
 
-                for i in active_sides:
-                    side = SIDES[i]
-                    name = SIDE_NAMES[i]
-                    arm_fresh, hand_fresh, ticks_6, raw_6, trig_ticks = extract_group(
-                        snap, i, stale_s
-                    )
-                    zero = captures[i].update(now, snap.scans, ticks_6, raw_6, arm_fresh)
-                    st = {"status": "ZEROING"}
-                    if hand_fresh:
-                        pct = grasp_percent(trig_ticks, profile[name])
-                        st["grasp_pct"] = pct
-                        st["hand_deg"] = np.rad2deg(hand_angles_rad(pct, profile[name]))
-                    if zero is None:
-                        side_status.append(f"{name}=ZEROING")
+                if not state.enabled:
+                    if not was_stopped:
+                        was_stopped = True
+                        print(
+                            f"[WARN] DualArm stopped: {state.error or 'inactive'} "
+                            f"(click Re-enable in viewer to recover)",
+                            flush=True,
+                        )
+                    for i in active_sides:
+                        ui_states[i] = {"status": "STOPPED"}
+                        side_status.append(f"{SIDE_NAMES[i]}=STOPPED")
+                else:
+                    was_stopped = False
+                    for i in active_sides:
+                        side = SIDES[i]
+                        name = SIDE_NAMES[i]
+                        arm_fresh, hand_fresh, ticks_6, raw_6, trig_ticks = extract_group(
+                            snap, i, stale_s
+                        )
+                        zero = captures[i].update(now, snap.scans, ticks_6, raw_6, arm_fresh)
+                        st = {"status": "ZEROING"}
+                        if hand_fresh:
+                            pct = grasp_percent(trig_ticks, profile[name])
+                            st["grasp_pct"] = pct
+                            st["hand_deg"] = np.rad2deg(hand_angles_rad(pct, profile[name]))
+                        if zero is None:
+                            side_status.append(f"{name}=ZEROING")
+                            ui_states[i] = st
+                            continue
+                        if not announced_zero[i]:
+                            announced_zero[i] = True
+                            if args.anchor == "current":
+                                anchors[i] = state.measured[i * 6 : i * 6 + 6].copy()
+                            print(f"[{name}] zero locked -> teleop engaged", flush=True)
+
+                        factor = np.asarray(profile[name]["factor"], dtype=float)
+                        q = anchors[i] + (ticks_6 - zero) * RAD_PER_TICK * factor
+                        q_clipped = np.clip(q, bounds_lo[i * 6 : i * 6 + 6], bounds_hi[i * 6 : i * 6 + 6])
+                        st["q_deg"] = np.rad2deg(q_clipped)
+
+                        if arm_fresh:
+                            if was_stale[i]:
+                                was_stale[i] = False
+                                print(f"[{name}] GELLO input recovered -> resuming", flush=True)
+                            try:
+                                arm.set_joint_target(side, q_clipped)
+                            except Exception as exc:
+                                print(f"[WARN] set_joint_target({name}): {exc}", flush=True)
+                            side_status.append(f"{name}=OK")
+                            st["status"] = "OK"
+                        else:
+                            if not was_stale[i]:
+                                was_stale[i] = True
+                                print(f"[{name}] GELLO input stale -> holding pose", flush=True)
+                            try:
+                                arm.set_joint_target(side, state.reference[i * 6 : i * 6 + 6])
+                            except Exception:
+                                pass
+                            side_status.append(f"{name}=HOLD")
+                            st["status"] = "HOLD"
+
                         ui_states[i] = st
-                        continue
-                    if not announced_zero[i]:
-                        announced_zero[i] = True
-                        if args.anchor == "current":
-                            anchors[i] = state.measured[i * 6 : i * 6 + 6].copy()
-                        print(f"[{name}] zero locked -> teleop engaged", flush=True)
 
-                    factor = np.asarray(profile[name]["factor"], dtype=float)
-                    q = anchors[i] + (ticks_6 - zero) * RAD_PER_TICK * factor
-                    q_clipped = np.clip(q, bounds_lo[i * 6 : i * 6 + 6], bounds_hi[i * 6 : i * 6 + 6])
-                    st["q_deg"] = np.rad2deg(q_clipped)
+                        if hand_due and hand_fresh:
+                            try:
+                                arm.set_hand_target(side, hand_angles_rad(st["grasp_pct"], profile[name]), 20)
+                            except Exception:
+                                pass
 
-                    if arm_fresh:
-                        if was_stale[i]:
-                            was_stale[i] = False
-                            print(f"[{name}] GELLO input recovered -> resuming", flush=True)
-                        arm.set_joint_target(side, q_clipped)
-                        side_status.append(f"{name}=OK")
-                        st["status"] = "OK"
-                    else:
-                        if not was_stale[i]:
-                            was_stale[i] = True
-                            print(f"[{name}] GELLO input stale -> holding pose", flush=True)
-                        arm.set_joint_target(side, state.reference[i * 6 : i * 6 + 6])
-                        side_status.append(f"{name}=HOLD")
-                        st["status"] = "HOLD"
-
-                    ui_states[i] = st
-
-                    if hand_due and hand_fresh:
-                        arm.set_hand_target(side, hand_angles_rad(st["grasp_pct"], profile[name]), 20)
-
-                if hand_due:
-                    last_hand = now
+                    if hand_due:
+                        last_hand = now
 
                 if viewer is not None:
                     if plant is not None:
