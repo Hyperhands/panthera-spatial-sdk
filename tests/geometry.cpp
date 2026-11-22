@@ -59,6 +59,19 @@ int main() try {
     collision_state({arm_geometry(0, q), arm_geometry(1, q)}, c);
     if (c.hard_margin <= 0)
         return 1;
+    // Full legal wrist range (J5 in [-60, 60] deg, J6 in [-160, 160] deg) must remain clear.
+    for (int j5 = -60; j5 <= 60; j5 += 5) {
+        for (int j6 = -160; j6 <= 160; j6 += 5) {
+            Six wrist = ready;
+            wrist[4] = j5 * deg;
+            wrist[5] = j6 * deg;
+            collision_state({arm_geometry(0, wrist), arm_geometry(1, wrist)}, c);
+            if (c.hard_margin <= 0)
+                throw std::runtime_error("False wrist hard stop at J5=" + std::to_string(j5) +
+                                         " J6=" + std::to_string(j6) + " pair=" +
+                                         std::to_string(c.pair));
+        }
+    }
     return 0;
 } catch (const std::exception& e) {
     std::cerr << e.what() << '\n';

@@ -133,11 +133,13 @@ void collision_state(const std::array<ArmGeometry, 2>& arms, CollisionState& sta
             project(gradient, arms[b.side], b, contact.point_b, -contact.n);
             const double margin = contact.distance - safe;
             const bool same_arm = a.side == b.side;
-            const double lower = -.5 * margin / (influence - safe);
-            state.rows.push_back(
-                {gradient, same_arm ? std::min(0., lower) : lower, margin, id, same_arm});
+            // Inter-arm: crisp geometric barrier near 20 mm (zero premature push beyond 35 mm).
+            const double lower = same_arm ? std::min(0., -.5 * margin / (influence - safe))
+                                          : -margin / 0.025;
+            state.rows.push_back({gradient, lower, margin, id, same_arm});
         };
-        add_row(bound, p.safe, .1, 2 * k);
+        const double influence = a.side == b.side ? .1 : .035;
+        add_row(bound, p.safe, influence, 2 * k);
         // The candidate must also respect the measured broad-phase hard limit.
         // Give that independent limit its own velocity damper when a mesh
         // certificate supplies a tighter positive physical separation.

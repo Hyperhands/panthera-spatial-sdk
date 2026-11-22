@@ -35,18 +35,34 @@ int main(int argc, char** argv) try {
             goal[0] += .15;
             robot.setJointTarget(s, goal);
         }
+        if (mode == "lag") {
+            auto until = HostClock::now() + 500ms;
+            bool warned = false;
+            while (HostClock::now() < until) {
+                auto st = robot.state();
+                if (!st.enabled)
+                    throw std::runtime_error("Moderate lag should clamp and warn, not stop: " +
+                                             st.error);
+                if (st.warning.find("Joint tracking lag clamped") != std::string::npos) {
+                    warned = true;
+                    break;
+                }
+                std::this_thread::sleep_for(2ms);
+            }
+            if (!warned)
+                throw std::runtime_error("Moderate lag did not emit warning");
+            robot.softStop();
+            return 0;
+        }
         auto until = HostClock::now() + 2s;
         while (robot.state().enabled && HostClock::now() < until)
             std::this_thread::sleep_for(1ms);
         auto stopped = robot.state();
         const char* expected = mode == "uplink"   ? "feedback expired"
                                : mode == "reboot" ? "restarted"
-                               : mode == "lag"    ? "Five consecutive"
                                                   : "Board fault";
         if (stopped.enabled || stopped.error.find(expected) == std::string::npos)
             throw std::runtime_error("Unexpected controller stop: " + stopped.error);
-        if (mode == "lag" && stopped.consecutive_failures != 5)
-            throw std::runtime_error("QP failure count");
         if (mode == "reboot") {
             robot.enable(3s);
             auto recovered = check(robot);

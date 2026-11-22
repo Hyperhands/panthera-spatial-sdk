@@ -55,7 +55,7 @@ class Board(SessionBoard):
         if mid == 257 and self.mit:
             assert abs(self.mit[5] - self.arm["q_rad"][1]) < .001
             assert self.mit[6] == 0 and self.mit[9] == (2.25 if self.is_right else 1.25)
-            assert abs(self.mit[7] - 61.2) < .001 and abs(self.mit[8] - 1.92) < .001
+            assert abs(self.mit[7] - 90.0) < .001 and abs(self.mit[8] - 2.5) < .001
             self.holds += 1
 
 

@@ -31,6 +31,7 @@ struct ControlState {
     std::array<RpcTiming, 2> rpc;
     std::uint64_t cycles{}, missed_cycles{};
     std::chrono::nanoseconds qp_time{};
+    std::string warning;
     std::string error;
 };
 // World-frame TCP twist is ordered [vx,vy,vz,wx,wy,wz].
@@ -48,6 +49,8 @@ class DualArm {
     void setTwistTarget(Side side, const Six& twist);
     void setJointTarget(Side side, const Six& angles);
     void setHandTarget(Side side, const Joints& angles, std::uint16_t duration_ms);
+    void setTaskWeights(const Six& weights);
+    void setArmTaskWeights(Side side, const Six& weights);
     ControlState state() const;
     void softStop();
     void enterExpertMode(ExpertAck);

@@ -250,6 +250,86 @@ def supplement_folded_proofs(a, b, proofs, samples):
     proofs.sort(key=len)
 
 
+def wrist_clearance_frames(model):
+    # Only (J5, J6) affect the relative pose of link4/link5 against palm_base_link.
+    # Extract the fixed transforms along link4 -> joint5 -> link5 -> joint6 -> palm_base_link
+    # so we can sweep a dense 2.5 deg (J5, J6) grid in milliseconds.
+    data = model.createData()
+    pin.framesForwardKinematics(model, data, pin.neutral(model))
+    chains = {}
+    for side in SIDES:
+        f4 = data.oMf[model.getFrameId(f"{side}_link4")]
+        f5 = data.oMf[model.getFrameId(f"{side}_link5")]
+        f6 = data.oMf[model.getFrameId(f"{side}_link6")]
+        f7 = data.oMf[model.getFrameId(f"{side}_palm_base_link")]
+        t45 = f4.inverse() * f5
+        t56 = f5.inverse() * f6
+        t67 = f6.inverse() * f7
+        ax5 = np.array([0.0, 0.0, -1.0])
+        ax6 = np.array([1.0, 0.0, 0.0])
+        chains[side] = (t45, t56, t67, ax5, ax6)
+
+    identity = pin.SE3.Identity()
+    j5_vals = np.deg2rad(np.linspace(-60, 60, 49))
+    j6_vals = np.deg2rad(np.linspace(-160, 160, 129))
+    frames = []
+    for j5, j6 in itertools.product(j5_vals, j6_vals):
+        entry = {}
+        for side, (t45, t56, t67, ax5, ax6) in chains.items():
+            r5 = pin.SE3(pin.AngleAxis(j5, ax5).matrix(), np.zeros(3))
+            r6 = pin.SE3(pin.AngleAxis(j6, ax6).matrix(), np.zeros(3))
+            p5 = t45 * r5
+            p7 = p5 * t56 * r6 * t67
+            entry[(side, 4)] = identity
+            entry[(side, 5)] = p5
+            entry[(side, 7)] = p7
+        frames.append(entry)
+    return frames
+
+
+def supplement_wrist_proofs(a, b, proofs, wrist_frames, target=0.0014):
+    side = SIDES[a["side"]]
+    ta_list = [f[(side, a["frame"])] for f in wrist_frames]
+    tb_list = [f[(side, b["frame"])] for f in wrist_frames]
+    raws = np.array(
+        [
+            segment_distance(
+                ta.act(np.asarray(a["a"])),
+                ta.act(np.asarray(a["b"])),
+                tb.act(np.asarray(b["a"])),
+                tb.act(np.asarray(b["b"])),
+            )
+            - a["r"]
+            - b["r"]
+            for ta, tb in zip(ta_list, tb_list)
+        ]
+    )
+    best = raws.copy()
+    for group in proofs:
+        best = np.maximum(best, [clearance(group, ta, tb) for ta, tb in zip(ta_list, tb_list)])
+    while True:
+        idx = int(np.argmin(best))
+        if best[idx] >= target:
+            break
+        extra = certify(
+            a["points"],
+            b["points"],
+            ta_list[idx],
+            tb_list[idx],
+            a["step_margin"],
+            b["step_margin"],
+            a["triangles"],
+            b["triangles"],
+        )
+        covered = np.array([clearance(extra, ta, tb) for ta, tb in zip(ta_list, tb_list)])
+        if covered[idx] <= best[idx] + 0.0001:
+            break
+        proofs.append(extra)
+        best = np.maximum(best, covered)
+    proofs.sort(key=len)
+    return float(raws.min()), float(best.min())
+
+
 def run():
     caps = sum((make(s) for s in SIDES), [])
     srdf = ET.parse(PKG / "srdf/panthera_dual_a2l1.srdf")
@@ -297,11 +377,13 @@ def run():
             for i, j in pairs
         ]
     folded_samples = folded_clearance_samples(m, urdf)
+    wrist_frames = wrist_clearance_frames(m)
     thresholds = []
     for k, (i, j) in enumerate(pairs):
         a, b = caps[i], caps[j]
         baseline = min(dist[pose][k] for pose in poses)
         inter = a["side"] != b["side"]
+        wrist = not inter and a["frame"] in (4, 5) and b["frame"] == 7
         proofs = []
         for pose, frames in poses.items():
             if inter or dist[pose][k] > 0.012:
@@ -321,21 +403,26 @@ def run():
                     b["triangles"],
                 )
             )
+        wrist_min = float("inf")
+        if wrist:
+            wrist_raw_min, wrist_min = supplement_wrist_proofs(a, b, proofs, wrist_frames)
+            baseline = min(baseline, wrist_raw_min)
         effective = {
             pose: max(
                 [dist[pose][k]] + [clearance(group, frames[i], frames[j]) for group in proofs]
             )
             for pose, frames in poses.items()
         }
-        minimum = min(effective.values())
+        minimum = min(min(effective.values()), wrist_min)
         if minimum <= 0:
-            raise ValueError((i, j, effective))
+            raise ValueError((i, j, effective, wrist_min))
         hard = 0.005 if inter else min(0.005, minimum * 0.4)
+        capsule_margin = 0.005 if wrist else 0.001
         thresholds.append(
             dict(
                 hard=hard,
                 safe=0.02 if inter else min(0.02, max(0.001, minimum * 0.8)),
-                capsule_hard=0.005 if inter else min(hard, baseline - 0.001),
+                capsule_hard=0.005 if inter else min(hard, baseline - capsule_margin),
                 certified=effective,
                 proofs=proofs,
             )

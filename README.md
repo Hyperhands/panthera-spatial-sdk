@@ -68,6 +68,30 @@ python examples/mujoco_mocap_qp.py --headless
 
 `--headless` 对多组静止姿态核对重力矩，并经同一套 UDP 接管和 MIT 指令验证跟踪与对向自停。显示与控制使用名义 URDF 惯量，仿真只运行一个双臂物理场景，控制器继续使用 SDK 的碰撞距离。场景用 `python tools/sim/build_mujoco_scene.py` 重新生成。请通过示例或 `sim/mujoco_board.py` 的 `load_scene()` 加载 XML；原始 `link2.STL` 的 370292 个三角面超出原生 STL 解码器的 200000 面上限，加载器在内存中将原三角面转换为 MSH。
 
+## 双臂 GELLO USB 遥操示例
+
+通过单个 USB 转串口适配器直接把飞特舵机总线（左 IDs 1–7、右 IDs 11–17，1 Mbps 8N1）接到主机，底层由 `third_party/astrial` 与 C++ `panthera::GelloReader` 线程轮询并在主机侧解算双臂关节角与五指目标，经 `DualArm` 500 Hz QP（带限位、限速、重力补偿与双臂自碰撞保护）推送到仿真或实机双板：
+
+```bash
+# 列出检测到的串口（跨平台）
+python examples/dual_gello_teleop.py --list-ports
+
+# 独立舵机状态可视化（无需连接机械臂/NXP；弹出 14 路舵机实时面板，支持 raw/ticks/速度/角度/扳机/延迟/一键 Re-zero）
+python examples/dual_gello_teleop.py --monitor --port /dev/ttyUSB0
+# 无硬件预览面板：python examples/dual_gello_teleop.py --monitor --mock-gello
+
+# 默认：本机仿真回环（接真实 GELLO 核对 12 轴方向与自碰撞；加 --viewer 或未装 MuJoCo 时打开 14 路舵机面板，已装 MuJoCo 时同时打开 3D 孪生窗口）
+python examples/dual_gello_teleop.py --port /dev/ttyUSB0 --viewer
+
+# 实机双臂遥操（可选 --viewer 打开舵机面板/MuJoCo 孪生，--no-hand 关闭手部，--side left|right 单臂）
+python examples/dual_gello_teleop.py --real --port /dev/ttyUSB0
+
+# 无硬件离线回环验证
+python examples/dual_gello_teleop.py --mock-gello --headless
+```
+
+默认 `--zero-mode startup`（与 `dual-gello` 一致，启动后保持主手静止 0.5 s 自动取零位；也支持 `--zero-mode saved` 使用标定零位），默认 `--max-speed 0.5` rad/s。可用 `--config <json>` 覆盖内置标定。主手样本陈旧（> 50 ms）或断开时自动冻结目标，恢复后经 QP 平滑追赶。
+
 ## 读取两板状态
 
 主机网卡配置为 `192.168.10.1` 后，运行 `build/host/panthera-read-state`（Windows 加 `.exe`）。示例绑定 UDP 5005、5015，收到两板新鲜的六轴反馈后输出原始编码器角度（rad）并退出。该入口只订阅遥测，不申请控制租约。板端启动回零由固件配置决定。

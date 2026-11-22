@@ -25,7 +25,7 @@ void check_j2_takeover() {
         try {
             controller.reset(q);
         } catch (const std::runtime_error& e) {
-            return std::string(e.what()) == "Measured joint outside configured limits";
+            return std::string(e.what()) == "Measured joint outside mechanical limits";
         }
         return false;
     };
@@ -35,17 +35,24 @@ void check_j2_takeover() {
             q[j] = angle * deg;
             law.reset(q);
             check(law.state.reference.isApprox(q), "takeover changed the measured pose");
+            if (angle < 0.)
+                check(law.state.warning.find("Soft joint limit") != std::string::npos,
+                      "soft joint limit did not warn");
         }
         JointVector q = field;
-        q[j] = -1.01 * deg;
-        check(rejected(law, q), "J2 below -1 degree accepted");
+        q[j] = -11. * deg;
+        check(rejected(law, q), "J2 below -10 degree mechanical limit accepted");
         q = field;
         q[j + 1] = -.05 * deg;
-        check(rejected(law, q), "J3 lower limit widened");
+        law.reset(q);
+        check(law.state.warning.find("Soft joint limit") != std::string::npos,
+              "J3 soft limit did not warn");
         ControlConfig tighter;
         tighter.joints.lower[j] = .5 * deg;
         ControlLaw custom(tighter);
-        check(rejected(custom, field), "custom J2 limit widened");
+        custom.reset(field);
+        check(custom.state.warning.find("Soft joint limit") != std::string::npos,
+              "custom J2 soft limit did not warn");
     }
     JointVector q = field;
     q[1] = -deg;
@@ -103,25 +110,31 @@ void check_field_hold() {
         measured[9] -= .055 * ramp * deg;
         hold(measured, k);
     }
+    // Same-arm boundary overrun warns and holds without killing control.
     for (int side = 0; side < 2; ++side)
         for (double wrist : {-1., 1.}) {
             JointVector contact = start;
             contact.segment<6>(6 * side) = Six{0., -.5, 0., -2.5, wrist, 0.} * deg;
-            for (bool takeover : {true, false}) {
-                law.reset(start);
-                try {
-                    if (takeover)
-                        law.reset(contact);
-                    else
-                        law.step(contact, targets);
-                } catch (const std::runtime_error& e) {
-                    if (std::string(e.what()) == "Measured collision hard threshold")
-                        continue;
-                    throw;
-                }
-                throw std::runtime_error("Intersecting feedback did not stop control");
-            }
+            law.reset(contact);
+            check(law.state.warning.find("Same-arm clearance boundary") != std::string::npos,
+                  "Same-arm boundary overrun did not warn");
+            law.reset(start);
+            law.step(contact, targets);
+            check(law.state.warning.find("Same-arm clearance boundary") != std::string::npos,
+                  "Same-arm boundary step did not warn");
         }
+    // Inter-arm collision below 5 mm still triggers hard stop.
+    {
+        JointVector crossed;
+        crossed << -0.75, 1.0, 1.3, -0.5, 0.0, 0.0, 0.75, 1.0, 1.3, -0.5, 0.0, 0.0;
+        bool stopped = false;
+        try {
+            law.reset(crossed);
+        } catch (const std::runtime_error& e) {
+            stopped = std::string(e.what()) == "Inter-arm collision hard threshold";
+        }
+        check(stopped, "Inter-arm hard collision did not stop control");
+    }
 }
 void check_delayed_joint_feedback() {
     const ControlConfig cfg;
@@ -256,20 +269,18 @@ int main() try {
     const JointVector zero = JointVector::Zero();
     expired.reset(zero);
     detail::ServoClock::advance_per_read = std::chrono::milliseconds(1);
-    for (int k = 1; k < 5; ++k) {
+    for (int k = 1; k <= 6; ++k) {
         expired.step(zero, {});
         check(expired.state.frozen && expired.state.consecutive_failures == k &&
-                  expired.state.reference == zero && expired.state.velocity == zero,
-              "deadline overrun did not freeze the reference");
+                  expired.state.reference == zero && expired.state.velocity == zero &&
+                  expired.state.warning.find("QP infeasible") != std::string::npos,
+              "deadline overrun did not freeze and warn");
     }
-    bool timed_out = false;
-    try {
-        expired.step(zero, {});
-    } catch (const std::runtime_error& e) {
-        timed_out = std::string(e.what()) == "Five consecutive QP failures";
-    }
-    check(timed_out, "repeated deadline overruns did not stop control");
     detail::ServoClock::advance_per_read = {};
+    expired.step(zero, {});
+    check(!expired.state.frozen && expired.state.consecutive_failures == 0 &&
+              expired.state.warning.empty(),
+          "controller did not recover after transient QP deadline overrun");
 #endif
     ControlConfig stage2;
     stage2.tracking_stop_rad = .10;
@@ -337,21 +348,25 @@ int main() try {
         collision_state({arm_geometry(0, q.head<6>()), arm_geometry(1, q.tail<6>())}, distance);
         check(distance.hard_margin >= 0 && distance.closest > 0, "random command penetrated");
     }
-    // Construct a measured/reference lag which makes the lead and acceleration bounds incompatible.
+    // Moderate lag beyond max_lead clamps reference and warns instead of deadlocking QP.
     q << ready, ready;
     c.reset(q);
     q[0] += default_bounds().max_lead[0] + .02;
-    for (int k = 0; k < 4; ++k) {
-        c.step(q, targets);
-        check(c.state.frozen && c.state.velocity.isZero(), "failed QP did not hold");
-    }
+    c.step(q, targets);
+    check(c.state.warning.find("Joint tracking lag clamped") != std::string::npos &&
+              std::abs(c.state.reference[0] - q[0]) <= default_bounds().max_lead[0] + 1e-6,
+          "moderate lag did not clamp and warn");
+    // Severe stall beyond tracking_stop_rad still triggers hard stop.
+    q << ready, ready;
+    c.reset(q);
+    q[0] += .50;
     bool stopped = false;
     try {
         c.step(q, targets);
-    } catch (const std::runtime_error&) {
-        stopped = true;
+    } catch (const std::runtime_error& e) {
+        stopped = std::string(e.what()) == "Joint tracking error exceeds stop threshold";
     }
-    check(stopped && c.state.consecutive_failures == 5, "five-failure stop missing");
+    check(stopped, "severe tracking stall did not stop control");
     return 0;
 } catch (const std::exception& e) {
     std::cerr << e.what() << '\n';

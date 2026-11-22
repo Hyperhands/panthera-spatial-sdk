@@ -12,6 +12,7 @@
 | BLASFEO（acados 子模块） | 随 v0.6.1 | `0a3df8683c6bf9d98168d616e0c5d05938c9d51c` | BSD-2-Clause |
 | Eigen | 5.0.1 | `bc3b39870ecb690a623a3f49149a358b95c5781d` | 主要为 MPL-2.0，组件许可见 COPYING.README |
 | pybind11 | v3.1.0 | `97bf890db679505a14dfe547a5e77bb2bd05dc90` | BSD-3-Clause |
+| astrial | 跨平台串口通信库 | `ed1899b751556767d610864fa8173d9bfeca4dad` | ISC |
 
 `protocol/` 与 `generated/protocol/` 来自 dual-gello 提交
 `49981be63a0aeccd9d2a5d52249cf8e84de17718` 的 `source/protocol/` 与

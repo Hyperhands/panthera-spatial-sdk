@@ -71,6 +71,7 @@ struct DualArm::Impl {
     std::mutex lifecycle, mutex;
     std::array<TargetBuffer, 2> targets;
     std::array<std::optional<HandTarget>, 2> hands;
+    std::array<std::optional<Six>, 2> pending_weights;
     ControlState snapshot;
     bool expert{};
     Impl(BoardAddress l, BoardAddress r, ControlConfig config)
@@ -102,11 +103,17 @@ struct DualArm::Impl {
                 for (int s = 0; s < 2; ++s)
                     targets[s].read_if_new(goals[s], seen[s]);
                 std::array<std::optional<HandTarget>, 2> pending;
+                std::array<std::optional<Six>, 2> new_weights;
                 {
                     std::unique_lock guard(mutex, std::try_to_lock);
-                    if (guard)
+                    if (guard) {
                         pending.swap(hands);
+                        new_weights.swap(pending_weights);
+                    }
                 }
+                for (unsigned s = 0; s < 2; ++s)
+                    if (new_weights[s])
+                        law.set_arm_task_weights(s, *new_weights[s]);
                 const auto last_reference = law.state.reference;
                 auto status = session.control([&](const Pair& measured, Pair& q, Pair& dq) {
                     law.step(join(measured), goals);
@@ -245,6 +252,22 @@ void DualArm::setHandTarget(Side s, const Joints& q, std::uint16_t duration) {
     std::lock_guard guard(i.mutex);
     i.require_control();
     i.hands[index(s)] = HandTarget{q, duration};
+}
+void DualArm::setTaskWeights(const Six& weights) {
+    if (!weights.allFinite() || (weights.array() < 0).any())
+        throw std::invalid_argument("Invalid task weights");
+    auto& i = *impl_;
+    std::lock_guard guard(i.mutex);
+    i.require_control();
+    i.pending_weights = {weights, weights};
+}
+void DualArm::setArmTaskWeights(Side s, const Six& weights) {
+    if (!weights.allFinite() || (weights.array() < 0).any())
+        throw std::invalid_argument("Invalid task weights");
+    auto& i = *impl_;
+    std::lock_guard guard(i.mutex);
+    i.require_control();
+    i.pending_weights[index(s)] = weights;
 }
 ControlState DualArm::state() const {
     std::lock_guard guard(impl_->mutex);

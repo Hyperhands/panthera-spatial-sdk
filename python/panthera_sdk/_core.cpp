@@ -7,6 +7,7 @@ namespace py = pybind11;
 using namespace panthera;
 using namespace pybind11::literals;
 void bind_telemetry(py::module_& m);
+void bind_gello(py::module_& m);
 
 namespace {
 using Array = py::array_t<double, py::array::c_style | py::array::forcecast>;
@@ -26,6 +27,7 @@ void check_interrupt() {
 } // namespace
 PYBIND11_MODULE(_core, m) {
     bind_telemetry(m);
+    bind_gello(m);
     py::enum_<Side>(m, "Side").value("left", Side::left).value("right", Side::right);
     py::enum_<ExpertAck>(m, "ExpertAck")
         .value("IUnderstandNoSafety", ExpertAck::IUnderstandNoSafety);
@@ -84,6 +86,7 @@ PYBIND11_MODULE(_core, m) {
         .def_readonly("enabled", &ControlState::enabled)
         .def_readonly("frozen", &ControlState::frozen)
         .def_readonly("expert", &ControlState::expert)
+        .def_readonly("warning", &ControlState::warning)
         .def_readonly("error", &ControlState::error)
         .def_readonly("consecutive_failures", &ControlState::consecutive_failures)
         .def_readonly("closest_pair", &ControlState::closest_pair)
@@ -134,6 +137,11 @@ PYBIND11_MODULE(_core, m) {
                 arm.setHandTarget(s, q, duration);
             },
             "side"_a, "angles"_a, "duration_ms"_a)
+        .def("set_task_weights",
+             [](DualArm& arm, const Array& w) { arm.setTaskWeights(vector<6>(w)); })
+        .def("set_arm_task_weights",
+             [](DualArm& arm, Side s, const Array& w) { arm.setArmTaskWeights(s, vector<6>(w)); },
+             "side"_a, "weights"_a)
         .def("state", &DualArm::state)
         .def("soft_stop", &DualArm::softStop, py::call_guard<py::gil_scoped_release>())
         .def("enter_expert_mode", &DualArm::enterExpertMode,
